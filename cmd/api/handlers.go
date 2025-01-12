@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
+	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/repository"
 	"github.com/gorilla/mux"
+)
+
+var (
+	ctx = context.Background()
 )
 
 func (a *app) Index(w http.ResponseWriter, r *http.Request) {
@@ -33,23 +38,22 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 		a.errorResponse(w, r, http.StatusBadRequest, "")
 		return
 	}
-}
 
-func (a *app) isURLInStore(ctx context.Context, key, inputURL string) bool {
-	urls, _ := a.rdb.HVals(ctx, key).Result()
-	for _, u := range urls {
-		if u == inputURL {
-			return true
-		}
+	links, err := a.storage.GetAll(ctx, repository.StorageParams{UserID: sessionID})
+
+	if err != nil {
+		a.errorResponse(w, r, http.StatusInternalServerError, "failed to get all tinylinks")
+		return
 	}
-	return false
+
+	if err := a.writeJSON(w, http.StatusOK, links, nil); err != nil {
+		a.serverErrorResponse(w, r, err)
+	}
 }
 
 func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		URL    string `json:"url"`
-		Domain string `json:"domain"`
-		Alias  string `json:"alias"`
+		URL string `json:"url"`
 	}
 
 	if err := a.readJSON(r, &input); err != nil {
@@ -57,42 +61,35 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, err := getSessionID(r)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
+	sessionID, _ := getSessionID(r)
+	hashKey := generateURLHash(sessionID, input.URL, 8)
+	tl := data.Tinylink{
+		TinyURL: hashKey,
+		URL:     input.URL,
+		QR: data.QR{
+			ImageURL: "test-image",
+			Width:    "450",
+			Height:   "450",
+		},
+	}
+
+	if err := a.storage.Create(ctx, tl, repository.StorageParams{UserID: sessionID}); err != nil {
+		a.logError(r, err)
+		a.errorResponse(w, r, http.StatusInternalServerError, "failed to create new record")
 		return
 	}
 
-	hashKey := generateURLHash(sessionID, input.URL)[:8]
-	redisKey := fmt.Sprintf("client:%s:tinylink:%s", sessionID, hashKey)
-
-	qr := map[string]interface{}{
-		"url":          input.URL,
-		"domain":       input.Domain,
-		"alias":        input.Alias,
-		"qr:image_url": "test",
-		"qr:width":     "test",
-		"qr:height":    "test",
-	}
-
-	ctx := context.Background()
-	if err := a.rdb.HSet(ctx, redisKey, qr).Err(); err != nil {
-		a.logError(r, err)
-		panic(err)
+	if err := a.writeJSON(w, http.StatusOK, envelope{"msg": "data"}, nil); err != nil {
+		a.serverErrorResponse(w, r, err)
 	}
 }
 
 func (a *app) DeleteTinylink(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := getSessionID(r)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
-		return
-	}
+	sessionID, _ := getSessionID(r)
+	tinylink := mux.Vars(r)["tinylink"]
 
-	redisKey := fmt.Sprintf("client:%s:data", sessionID)
-
-	ctx := context.Background()
-	if err := a.rdb.Del(ctx, redisKey).Err(); err != nil {
+	if err := a.storage.Delete(ctx, repository.StorageParams{UserID: sessionID, ID: tinylink}); err != nil {
+		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusBadRequest, "failed to delete tinylink")
 		return
 	}
@@ -103,22 +100,16 @@ func (a *app) DeleteTinylink(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) Redirect(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := getSessionID(r)
-	if err != nil {
-		a.serverErrorResponse(w, r, err)
-		return
-	}
-
+	sessionID, _ := getSessionID(r)
 	tinylink := mux.Vars(r)["tinylink"]
-	redisKey := fmt.Sprintf("client:%s:data", sessionID)
 
-	ctx := context.Background()
-	val, err := a.rdb.HGet(ctx, redisKey, tinylink).Result()
+	tl, err := a.storage.Get(ctx, repository.StorageParams{UserID: sessionID, ID: tinylink})
 	if err != nil {
-		http.Error(w, "Failed to get the url by key", http.StatusBadRequest)
+		a.logError(r, err)
+		a.errorResponse(w, r, http.StatusInternalServerError, "no data under this hash")
 		return
 	}
 
-	w.Header().Set("Location", val)
+	w.Header().Set("Location", tl.URL)
 	w.WriteHeader(http.StatusFound)
 }

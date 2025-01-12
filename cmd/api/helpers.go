@@ -10,7 +10,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"time"
 )
 
 type envelope map[string]interface{}
@@ -60,13 +59,12 @@ func (a *app) readJSON(r *http.Request, dst interface{}) error {
 func createSessionID(l int) string {
 	b := make([]byte, l)
 	rand.Read(b)
-	fmt.Println(b)
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-func generateURLHash(clientID, url string) string {
-	s := clientID + url + time.Now().String()
-	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))
+func generateURLHash(clientID, url string, length int) string {
+	s := clientID + url
+	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:length]
 }
 
 func getClientIP(r *http.Request) string {

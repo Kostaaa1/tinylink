@@ -15,9 +15,11 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func (a *app) persistSessionMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		session, _ := a.store.Get(r, string(tinylinkSessionKey))
+		session, _ := a.cookiestore.Get(r, string(tinylinkSessionKey))
 		if len(session.Values) == 0 {
+			// maybe store other client data? IP, UserAgent, Referer...
 			session.Values["session_id"] = createSessionID(8)
+
 			session.Options.MaxAge = 24 * 3600 // 24 hours
 			session.Options.Secure = true      // https only
 			session.Options.HttpOnly = true    // prevent javascript access

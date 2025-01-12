@@ -3,51 +3,56 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/cmd/api/repos/redisrepo"
+	"github.com/Kostaaa1/tinylink/internal/repository"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/redis/go-redis/v9"
 )
 
 type config struct {
-	port  string
-	env   string
-	store string
+	port        string
+	env         string
+	storageType string
 }
 
 type app struct {
 	config
-	logger *slog.Logger
-	rdb    *redis.Client
-	store  *sessions.CookieStore
+	logger      *slog.Logger
+	cookiestore *sessions.CookieStore
+	storage     repository.Storage
 }
 
 func main() {
 	var cfg config
+
 	flag.StringVar(&cfg.port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+	flag.StringVar(&cfg.storageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	rdb, err := initRedis()
+	ctx := context.Background()
+
+	storage, err := initStorage(ctx, cfg.storageType)
 	if err != nil {
-		logger.Info("Failed to start redis")
 		log.Fatal(err)
 	}
-
-	logger.Info("Redis successfully started")
+	logger.Info("Successfully started", "storage", cfg.storageType)
 
 	a := app{
-		logger: logger,
-		config: cfg,
-		rdb:    rdb,
-		store:  sessions.NewCookieStore([]byte(securecookie.GenerateRandomKey(32))),
+		logger:      logger,
+		config:      cfg,
+		cookiestore: sessions.NewCookieStore([]byte(securecookie.GenerateRandomKey(32))),
+		storage:     storage,
 	}
 
 	srv := &http.Server{
@@ -62,18 +67,23 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-func initRedis() (*redis.Client, error) {
-	ctx := context.Background()
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "lagaosiprovidnokopas",
-		DB:       0,
-	})
+func initStorage(ctx context.Context, storageType string) (repository.Storage, error) {
+	var storage repository.Storage
 
-	_, err := rdb.Ping(ctx).Result()
-	if err != nil {
-		return nil, err
+	switch storageType {
+	case "redis":
+		storage = redisrepo.NewRedisRepo(ctx, &redis.Options{
+			Addr:     "localhost:6379",
+			Password: "lagaosiprovidnokopas",
+			DB:       0,
+		})
+	case "sqlite":
+	default:
 	}
 
-	return rdb, nil
+	if err := storage.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("storage ping failed %w", err)
+	}
+
+	return storage, nil
 }

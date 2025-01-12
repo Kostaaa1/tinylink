@@ -7,8 +7,8 @@ type QR struct {
 }
 
 type Tinylink struct {
-	URL    string `json:"url"`
-	Domain string `json:"domain"`
-	Alias  string `json:"alias"`
-	QR     QR     `json:"qr"`
+	ID      string `json:"id"`
+	TinyURL string `json:"tiny_url"`
+	URL     string `json:"url"`
+	QR      QR     `json:"qr"`
 }
