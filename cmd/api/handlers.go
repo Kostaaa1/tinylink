@@ -40,7 +40,6 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	links, err := a.storage.GetAll(ctx, storage.QueryParams{UserID: sessionID})
-
 	if err != nil {
 		a.errorResponse(w, r, http.StatusInternalServerError, "failed to get all tinylinks")
 		return
@@ -57,14 +56,14 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.readJSON(r, &input); err != nil {
-		a.logger.Info("failed to get cleintID")
+		a.logger.Info("failed to get clientID")
 		return
 	}
 
 	sessionID, _ := getSessionID(r)
 	hashKey := generateTinylink(sessionID, input.URL, 8)
 
-	tl := models.Tinylink{
+	tl := &models.Tinylink{
 		TinyURL: hashKey,
 		URL:     input.URL,
 		QR: models.QR{

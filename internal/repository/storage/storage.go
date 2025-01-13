@@ -12,9 +12,9 @@ type QueryParams struct {
 }
 
 type Storage interface {
-	GetAll(ctx context.Context, qp QueryParams) ([]models.Tinylink, error)
+	GetAll(ctx context.Context, qp QueryParams) ([]*models.Tinylink, error)
 	Delete(ctx context.Context, qp QueryParams) error
-	Create(ctx context.Context, tl models.Tinylink, qp QueryParams) (models.Tinylink, error)
-	Get(ctx context.Context, qp QueryParams) (models.Tinylink, error)
+	Create(ctx context.Context, tl *models.Tinylink, qp QueryParams) (*models.Tinylink, error)
+	Get(ctx context.Context, qp QueryParams) (*models.Tinylink, error)
 	Ping(ctx context.Context) error
 }

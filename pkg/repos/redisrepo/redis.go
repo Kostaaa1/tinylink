@@ -29,17 +29,17 @@ func getTinylinkPattern(userID string) string {
 	return fmt.Sprintf("client:%s:tinylink", userID)
 }
 
-func (r *RedisRepository) GetAll(ctx context.Context, qp storage.QueryParams) ([]models.Tinylink, error) {
+func (r *RedisRepository) GetAll(ctx context.Context, qp storage.QueryParams) ([]*models.Tinylink, error) {
 	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
 	result, err := r.client.HGetAll(ctx, pattern).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	links := []models.Tinylink{}
+	links := []*models.Tinylink{}
 
 	for key, value := range result {
-		var tl models.Tinylink
+		var tl *models.Tinylink
 		if err := json.Unmarshal([]byte(value), &tl); err != nil {
 			return nil, err
 		}
@@ -50,20 +50,20 @@ func (r *RedisRepository) GetAll(ctx context.Context, qp storage.QueryParams) ([
 	return links, nil
 }
 
-func (r *RedisRepository) Get(ctx context.Context, qp storage.QueryParams) (models.Tinylink, error) {
+func (r *RedisRepository) Get(ctx context.Context, qp storage.QueryParams) (*models.Tinylink, error) {
 	var tl models.Tinylink
 	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
 
 	val, err := r.client.HGet(ctx, pattern, qp.ID).Result()
 	if err != nil {
-		return tl, err
+		return nil, err
 	}
 
 	if err := json.Unmarshal([]byte(val), &tl); err != nil {
-		return tl, err
+		return nil, err
 	}
 
-	return tl, nil
+	return &tl, nil
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, qp storage.QueryParams) error {
@@ -74,22 +74,27 @@ func (r *RedisRepository) Delete(ctx context.Context, qp storage.QueryParams) er
 	return nil
 }
 
-func (r *RedisRepository) Create(ctx context.Context, tl models.Tinylink, qp storage.QueryParams) (models.Tinylink, error) {
+func (r *RedisRepository) Create(ctx context.Context, tl *models.Tinylink, qp storage.QueryParams) (*models.Tinylink, error) {
 	b, err := json.Marshal(tl)
 	if err != nil {
-		return models.Tinylink{}, err
+		return nil, err
 	}
 
 	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
 	if r.Check(ctx, pattern, tl.TinyURL) {
-		return models.Tinylink{}, errors.New("url under this hash already exists")
+		return nil, errors.New("you've already created tinylink for this url")
 	}
 
 	if _, err := r.client.HSet(ctx, pattern, tl.TinyURL, b).Result(); err != nil {
-		return models.Tinylink{}, err
+		return nil, err
 	}
 
-	return tl, err
+	newTL, err := r.Get(ctx, qp)
+	if err != nil {
+		return nil, err
+	}
+
+	return newTL, err
 }
 
 func (r *RedisRepository) Ping(ctx context.Context) error {
