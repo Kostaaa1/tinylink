@@ -1,4 +1,4 @@
-package data
+package models
 
 type QR struct {
 	ImageURL string `json:"image_url"`

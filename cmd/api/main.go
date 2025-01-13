@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/cmd/api/repos/redisrepo"
-	"github.com/Kostaaa1/tinylink/internal/repository"
+	"github.com/Kostaaa1/tinylink/internal/repository/storage"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/redis/go-redis/v9"
@@ -27,7 +27,7 @@ type app struct {
 	config
 	logger      *slog.Logger
 	cookiestore *sessions.CookieStore
-	storage     repository.Storage
+	storage     storage.Storage
 }
 
 func main() {
@@ -67,8 +67,8 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-func initStorage(ctx context.Context, storageType string) (repository.Storage, error) {
-	var storage repository.Storage
+func initStorage(ctx context.Context, storageType string) (storage.Storage, error) {
+	var storage storage.Storage
 
 	switch storageType {
 	case "redis":
