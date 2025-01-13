@@ -62,7 +62,8 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID, _ := getSessionID(r)
-	hashKey := generateURLHash(sessionID, input.URL, 8)
+	hashKey := generateTinylink(sessionID, input.URL, 8)
+
 	tl := models.Tinylink{
 		TinyURL: hashKey,
 		URL:     input.URL,
@@ -73,13 +74,14 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID}); err != nil {
+	tl, err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID})
+	if err != nil {
 		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusInternalServerError, "failed to create new record")
 		return
 	}
 
-	if err := a.writeJSON(w, http.StatusOK, envelope{"msg": "data"}, nil); err != nil {
+	if err := a.writeJSON(w, http.StatusOK, tl, nil); err != nil {
 		a.serverErrorResponse(w, r, err)
 	}
 }

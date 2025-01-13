@@ -2,18 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"flag"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/cmd/api/repos/redisrepo"
 	"github.com/Kostaaa1/tinylink/internal/repository/storage"
-	"github.com/gorilla/securecookie"
+	"github.com/Kostaaa1/tinylink/pkg/repos/redisrepo"
 	"github.com/gorilla/sessions"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -31,6 +31,11 @@ type app struct {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
+
 	var cfg config
 
 	flag.StringVar(&cfg.port, "port", "3000", "Server address port")
@@ -40,36 +45,46 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	ctx := context.Background()
-
-	storage, err := initStorage(ctx, cfg.storageType)
-	if err != nil {
-		log.Fatal(err)
-	}
-	logger.Info("Successfully started", "storage", cfg.storageType)
-
 	a := app{
 		logger:      logger,
 		config:      cfg,
-		cookiestore: sessions.NewCookieStore([]byte(securecookie.GenerateRandomKey(32))),
-		storage:     storage,
+		cookiestore: newCookieStore(),
+		storage:     newStorage(cfg.storageType),
 	}
 
 	srv := &http.Server{
-		Addr:         ":" + cfg.port,
-		Handler:      a.Routes(),
-		IdleTimeout:  1 * time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:           ":" + cfg.port,
+		Handler:        a.Routes(),
+		IdleTimeout:    1 * time.Minute,
+		ReadTimeout:    10 * time.Second,
+		WriteTimeout:   30 * time.Second,
+		MaxHeaderBytes: 2 * 1024 * 1024,
 	}
 
 	logger.Info("Server running on", "port", srv.Addr)
 	log.Fatal(srv.ListenAndServe())
 }
 
-func initStorage(ctx context.Context, storageType string) (storage.Storage, error) {
-	var storage storage.Storage
+func newCookieStore() *sessions.CookieStore {
+	authKeyHex := os.Getenv("TINYLINK_AUTH_KEY")
+	if authKeyHex == "" {
+		authKeyHex = generateRandHex(32)
+	}
+	authKey, _ := hex.DecodeString(authKeyHex)
 
+	encryptionKeyHex := os.Getenv("TINYLINK_ENCRYPTION_KEY")
+	if encryptionKeyHex == "" {
+		encryptionKeyHex = generateRandHex(16)
+	}
+	encryptionKey, _ := hex.DecodeString(encryptionKeyHex)
+
+	return sessions.NewCookieStore(authKey, encryptionKey)
+}
+
+func newStorage(storageType string) storage.Storage {
+	ctx := context.Background()
+
+	var storage storage.Storage
 	switch storageType {
 	case "redis":
 		storage = redisrepo.NewRedisRepo(ctx, &redis.Options{
@@ -82,8 +97,8 @@ func initStorage(ctx context.Context, storageType string) (storage.Storage, erro
 	}
 
 	if err := storage.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("storage ping failed %w", err)
+		log.Fatalf("Storage ping failed for %s: %v", storageType, err)
 	}
 
-	return storage, nil
+	return storage
 }
