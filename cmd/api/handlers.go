@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/Kostaaa1/tinylink/internal/data"
-	"github.com/Kostaaa1/tinylink/internal/repository"
+	"github.com/Kostaaa1/tinylink/internal/models"
+	"github.com/Kostaaa1/tinylink/internal/repository/storage"
 	"github.com/gorilla/mux"
 )
 
@@ -39,7 +39,7 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	links, err := a.storage.GetAll(ctx, repository.StorageParams{UserID: sessionID})
+	links, err := a.storage.GetAll(ctx, storage.QueryParams{UserID: sessionID})
 
 	if err != nil {
 		a.errorResponse(w, r, http.StatusInternalServerError, "failed to get all tinylinks")
@@ -63,17 +63,17 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 
 	sessionID, _ := getSessionID(r)
 	hashKey := generateURLHash(sessionID, input.URL, 8)
-	tl := data.Tinylink{
+	tl := models.Tinylink{
 		TinyURL: hashKey,
 		URL:     input.URL,
-		QR: data.QR{
+		QR: models.QR{
 			ImageURL: "test-image",
 			Width:    "450",
 			Height:   "450",
 		},
 	}
 
-	if err := a.storage.Create(ctx, tl, repository.StorageParams{UserID: sessionID}); err != nil {
+	if err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID}); err != nil {
 		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusInternalServerError, "failed to create new record")
 		return
@@ -88,7 +88,7 @@ func (a *app) DeleteTinylink(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := getSessionID(r)
 	tinylink := mux.Vars(r)["tinylink"]
 
-	if err := a.storage.Delete(ctx, repository.StorageParams{UserID: sessionID, ID: tinylink}); err != nil {
+	if err := a.storage.Delete(ctx, storage.QueryParams{UserID: sessionID, ID: tinylink}); err != nil {
 		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusBadRequest, "failed to delete tinylink")
 		return
@@ -103,7 +103,7 @@ func (a *app) Redirect(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := getSessionID(r)
 	tinylink := mux.Vars(r)["tinylink"]
 
-	tl, err := a.storage.Get(ctx, repository.StorageParams{UserID: sessionID, ID: tinylink})
+	tl, err := a.storage.Get(ctx, storage.QueryParams{UserID: sessionID, ID: tinylink})
 	if err != nil {
 		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusInternalServerError, "no data under this hash")
