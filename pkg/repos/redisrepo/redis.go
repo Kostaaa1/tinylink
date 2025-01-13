@@ -74,22 +74,22 @@ func (r *RedisRepository) Delete(ctx context.Context, qp storage.QueryParams) er
 	return nil
 }
 
-func (r *RedisRepository) Create(ctx context.Context, tl models.Tinylink, qp storage.QueryParams) error {
+func (r *RedisRepository) Create(ctx context.Context, tl models.Tinylink, qp storage.QueryParams) (models.Tinylink, error) {
 	b, err := json.Marshal(tl)
 	if err != nil {
-		return err
+		return models.Tinylink{}, err
 	}
 
 	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
 	if r.Check(ctx, pattern, tl.TinyURL) {
-		return errors.New("url under this has already exists")
+		return models.Tinylink{}, errors.New("url under this hash already exists")
 	}
 
 	if _, err := r.client.HSet(ctx, pattern, tl.TinyURL, b).Result(); err != nil {
-		return err
+		return models.Tinylink{}, err
 	}
 
-	return nil
+	return tl, err
 }
 
 func (r *RedisRepository) Ping(ctx context.Context) error {

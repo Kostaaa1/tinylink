@@ -3,13 +3,15 @@ package main
 import (
 	"crypto/rand"
 	"crypto/sha1"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+
+	"github.com/gorilla/sessions"
 )
 
 type envelope map[string]interface{}
@@ -56,13 +58,35 @@ func (a *app) readJSON(r *http.Request, dst interface{}) error {
 	return nil
 }
 
-func createSessionID(l int) string {
-	b := make([]byte, l)
-	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)
+type contextKey string
+
+const tinylinkSessionKey contextKey = "tinylink_session"
+
+type sessionKey string
+
+const sessionIDKey sessionKey = "session_id"
+
+func getSessionID(r *http.Request) (string, error) {
+	session, ok := r.Context().Value(tinylinkSessionKey).(*sessions.Session)
+	if !ok {
+		return "", errors.New("no session found in context")
+	}
+	s, ok := session.Values[sessionIDKey].(string)
+	if ok {
+		return s, nil
+	}
+	return "", errors.New("session is not a string?")
 }
 
-func generateURLHash(clientID, url string, length int) string {
+// ffffff
+
+func generateRandHex(l int) string {
+	b := make([]byte, l)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func generateTinylink(clientID, url string, length int) string {
 	s := clientID + url
 	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:length]
 }

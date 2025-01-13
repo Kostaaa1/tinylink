@@ -12,5 +12,6 @@ require (
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/sessions v1.4.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
 )
