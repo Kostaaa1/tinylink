@@ -13,17 +13,22 @@ URL shortener
 
 ## Goals
 
+- URL Shortener (use HTMX, templ, maybe svelte?)
+- Repository pattern for implementing storage (use Redis, SQLite)
+- Explore new Headers
+- gorilla/sessions - use cookie store to store TTL sessions
+
 - URL shortener web app (HTMX, html/template)
 - Redis
 - Experiment with new Headers - learn and use some new headers
 - Sessions - gorilla/sessions (learn about cookies/sessions in-depth)
 - QR - use library first, build your own later
 - Learn about logging (net/slog)
-- TLS
 - Rate limiter
 - Docker
 - Deploy (Railway, Render)
 - Learn about Github Actions
+- TLS
 
 -- Extra
 - Automate stuff with shell

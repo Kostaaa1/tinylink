@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"net/http"
 
 	"github.com/Kostaaa1/tinylink/internal/models"
 	"github.com/Kostaaa1/tinylink/internal/repository/storage"
 	"github.com/gorilla/mux"
+	"github.com/skip2/go-qrcode"
 )
 
 var (
@@ -66,21 +69,30 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 	tl := &models.Tinylink{
 		TinyURL: hashKey,
 		URL:     input.URL,
-		QR: models.QR{
-			ImageURL: "test-image",
-			Width:    "450",
-			Height:   "450",
-		},
 	}
 
-	tl, err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID})
+	pngBytes, err := qrcode.Encode(fmt.Sprintf("http://localhost:3000/%s", tl.TinyURL), qrcode.Medium, 127)
+	if err != nil {
+		a.serverErrorResponse(w, r, err)
+		return
+	}
+	qr := base64.StdEncoding.EncodeToString(pngBytes)
+	metadata := http.DetectContentType(pngBytes)
+	pngURL := fmt.Sprintf("data:%s;base64,%s", metadata, qr)
+	tl.QR = models.QR{
+		ImageURL: pngURL,
+		Width:    "127",
+		Height:   "127",
+	}
+
+	newTl, err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID})
 	if err != nil {
 		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusInternalServerError, "failed to create new record")
 		return
 	}
 
-	if err := a.writeJSON(w, http.StatusOK, tl, nil); err != nil {
+	if err := a.writeJSON(w, http.StatusOK, newTl, nil); err != nil {
 		a.serverErrorResponse(w, r, err)
 	}
 }
