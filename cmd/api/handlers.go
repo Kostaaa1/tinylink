@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 
@@ -38,7 +37,7 @@ func (a *app) Index(w http.ResponseWriter, r *http.Request) {
 func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := getSessionID(r)
 	if err != nil {
-		a.errorResponse(w, r, http.StatusBadRequest, "")
+		a.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -64,25 +63,26 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sessionID, _ := getSessionID(r)
-	hashKey := generateTinylink(sessionID, input.URL, 8)
+	tlHash := generateTinylink(sessionID, input.URL, 8)
 
-	tl := &models.Tinylink{
-		TinyURL: hashKey,
-		URL:     input.URL,
-	}
-
-	pngBytes, err := qrcode.Encode(fmt.Sprintf("http://localhost:3000/%s", tl.TinyURL), qrcode.Medium, 127)
+	pngBytes, err := qrcode.Encode(fmt.Sprintf("http://localhost:%s/%s", a.config.port, tlHash), qrcode.Medium, 127)
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
 		return
 	}
-	qr := base64.StdEncoding.EncodeToString(pngBytes)
-	metadata := http.DetectContentType(pngBytes)
-	pngURL := fmt.Sprintf("data:%s;base64,%s", metadata, qr)
-	tl.QR = models.QR{
-		ImageURL: pngURL,
-		Width:    "127",
-		Height:   "127",
+
+	tl := &models.Tinylink{
+		ID:          "random-id",
+		Host:        "http://localhost:3000",
+		Hash:        tlHash,
+		OriginalURL: input.URL,
+		QR: models.QR{
+			Data:     pngBytes,
+			Width:    127,
+			Height:   127,
+			Size:     len(pngBytes),
+			MimeType: http.DetectContentType(pngBytes),
+		},
 	}
 
 	newTl, err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID})
@@ -123,6 +123,6 @@ func (a *app) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Location", tl.URL)
+	w.Header().Set("Location", tl.Hash)
 	w.WriteHeader(http.StatusFound)
 }

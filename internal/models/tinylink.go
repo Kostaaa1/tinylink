@@ -1,14 +1,17 @@
 package models
 
 type QR struct {
-	ImageURL string `json:"image_url"`
-	Width    string `json:"width"`
-	Height   string `json:"height"`
+	Data     []byte `json:"data"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Size     int    `json:"size"`
+	MimeType string `json:"mimetype"`
 }
 
 type Tinylink struct {
-	ID      string `json:"id"`
-	TinyURL string `json:"tiny_url"`
-	URL     string `json:"url"`
-	QR      QR     `json:"qr"`
+	ID          string `json:"id"`
+	Host        string `json:"host"`
+	Hash        string `json:"hash"`
+	OriginalURL string `json:"original_url"`
+	QR          QR     `json:"qr"`
 }
