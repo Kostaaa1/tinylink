@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"flag"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -68,6 +69,7 @@ func main() {
 func newCookieStore() *sessions.CookieStore {
 	authKeyHex := os.Getenv("TINYLINK_AUTH_KEY")
 	if authKeyHex == "" {
+		fmt.Println("No key found in env. Generating...")
 		authKeyHex = generateRandHex(32)
 	}
 	authKey, _ := hex.DecodeString(authKeyHex)

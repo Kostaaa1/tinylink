@@ -25,9 +25,11 @@ func (a *app) writeJSON(w http.ResponseWriter, status int, data interface{}, hea
 	for key, value := range headers {
 		w.Header()[key] = value
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(js)
+
 	return nil
 }
 
@@ -37,6 +39,7 @@ func (a *app) readJSON(r *http.Request, dst interface{}) error {
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 		var invalidUnmarshalError *json.InvalidUnmarshalError
+
 		switch {
 		case errors.As(err, &syntaxError):
 			return fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset)
@@ -62,23 +65,17 @@ type contextKey string
 
 const tinylinkSessionKey contextKey = "tinylink_session"
 
-type sessionKey string
-
-const sessionIDKey sessionKey = "session_id"
-
 func getSessionID(r *http.Request) (string, error) {
 	session, ok := r.Context().Value(tinylinkSessionKey).(*sessions.Session)
 	if !ok {
 		return "", errors.New("no session found in context")
 	}
-	s, ok := session.Values[sessionIDKey].(string)
+	s, ok := session.Values["session_id"].(string)
 	if ok {
 		return s, nil
 	}
 	return "", errors.New("session is not a string?")
 }
-
-// ffffff
 
 func generateRandHex(l int) string {
 	b := make([]byte, l)
