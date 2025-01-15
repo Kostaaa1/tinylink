@@ -41,6 +41,8 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Println("CALLED")
+
 	links, err := a.storage.GetAll(ctx, storage.QueryParams{UserID: sessionID})
 	if err != nil {
 		a.errorResponse(w, r, http.StatusInternalServerError, "failed to get all tinylinks")
@@ -123,6 +125,6 @@ func (a *app) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Location", tl.Hash)
+	w.Header().Set("Location", tl.OriginalURL)
 	w.WriteHeader(http.StatusFound)
 }
