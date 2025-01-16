@@ -1,8 +1,9 @@
 package redisrepo
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/gob"
 	"errors"
 	"fmt"
 
@@ -15,77 +16,111 @@ type RedisRepository struct {
 	client *redis.Client
 }
 
-func getTLPattern(clientID string) string {
-	return fmt.Sprintf("client:%s:tinylink:*", clientID)
-}
-
 func NewRedisRepo(ctx context.Context, opt *redis.Options) storage.Storage {
 	return &RedisRepository{
 		client: redis.NewClient(opt),
 	}
 }
 
-func getTinylinkPattern(userID string) string {
-	return fmt.Sprintf("client:%s:tinylink", userID)
+func (r *RedisRepository) Create(ctx context.Context, tl *models.Tinylink, qp storage.QueryParams) (*models.Tinylink, error) {
+	var buff bytes.Buffer
+	enc := gob.NewEncoder(&buff)
+	enc.Encode(tl)
+
+	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.ClientID, tl.Alias)
+	if err := r.client.Set(ctx, pattern, buff.Bytes(), 0).Err(); err != nil {
+		return nil, err
+	}
+
+	if qp.CheckUnique {
+		isValid, err := r.ValidAlias(ctx, tl.Alias)
+		if err != nil {
+			return nil, err
+		}
+
+		if !isValid {
+			return nil, errors.New("provided alias is taken")
+		}
+
+		if err := r.client.Set(ctx, "unique", tl.Alias, 0).Err(); err != nil {
+			return nil, fmt.Errorf("failed to create unique alias: %w", err)
+		}
+	}
+
+	return r.Get(ctx, storage.QueryParams{ClientID: qp.ClientID, Alias: tl.Alias})
 }
 
-func (r *RedisRepository) GetAll(ctx context.Context, qp storage.QueryParams) ([]*models.Tinylink, error) {
-	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
+func (r *RedisRepository) Get(ctx context.Context, qp storage.QueryParams) (*models.Tinylink, error) {
+	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.ClientID, qp.Alias)
 
-	result, err := r.client.HGetAll(ctx, pattern).Result()
+	v, err := r.client.Get(ctx, pattern).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	links := []*models.Tinylink{}
-	for key, value := range result {
-		var tl *models.Tinylink
-		if err := json.Unmarshal([]byte(value), &tl); err != nil {
+	var dbuf = bytes.NewBuffer([]byte(v))
+	dec := gob.NewDecoder(dbuf)
+
+	var tl models.Tinylink
+	if err := dec.Decode(&tl); err != nil {
+		return nil, err
+	}
+
+	return &tl, nil
+}
+
+func (r *RedisRepository) ValidAlias(ctx context.Context, alias string) (bool, error) {
+	n, err := r.client.Exists(ctx, fmt.Sprintf("unique:%s", alias)).Result()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+func (r *RedisRepository) GetAll(ctx context.Context, qp storage.QueryParams) ([]*models.Tinylink, error) {
+	keys, err := r.client.Keys(ctx, fmt.Sprintf("client:%s:tinylink:*", qp.ClientID)).Result()
+	fmt.Println(keys)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(keys) == 0 {
+		return nil, errors.New("you have 0 tinylinks")
+	}
+
+	values, err := r.client.MGet(ctx, keys...).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	var links []*models.Tinylink
+	for _, val := range values {
+		strVal, ok := val.(string)
+		if !ok {
+			return nil, errors.New("assertion to string from interface{} in GetAll failed")
+		}
+		dbuv := []byte(strVal)
+
+		var dbuf = bytes.NewBuffer(dbuv)
+		dec := gob.NewDecoder(dbuf)
+
+		var tl models.Tinylink
+		if err := dec.Decode(&tl); err != nil {
 			return nil, err
 		}
-		tl.Hash = key
-		links = append(links, tl)
+		links = append(links, &tl)
 	}
 
 	return links, nil
 }
 
-func (r *RedisRepository) Get(ctx context.Context, qp storage.QueryParams) (*models.Tinylink, error) {
-	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
-
-	val, err := r.client.HGet(ctx, pattern, qp.ID).Result()
-	if err != nil {
-		return nil, err
-	}
-
-	var tl models.Tinylink
-	if err := json.Unmarshal([]byte(val), &tl); err != nil {
-		return nil, err
-	}
-	return &tl, nil
-}
-
-func (r *RedisRepository) Create(ctx context.Context, tl *models.Tinylink, qp storage.QueryParams) (*models.Tinylink, error) {
-	b, err := json.Marshal(tl)
-	if err != nil {
-		return nil, err
-	}
-
-	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
-	if r.Check(ctx, pattern, tl.Hash) {
-		return nil, errors.New("you've already created tinylink for this url")
-	}
-
-	if _, err := r.client.HSet(ctx, pattern, tl.Hash, b).Result(); err != nil {
-		return nil, err
-	}
-
-	return r.Get(ctx, storage.QueryParams{UserID: qp.UserID, ID: tl.Hash})
-}
-
 func (r *RedisRepository) Delete(ctx context.Context, qp storage.QueryParams) error {
-	pattern := fmt.Sprintf("client:%s:tinylink", qp.UserID)
-	if err := r.client.HDel(ctx, pattern, qp.ID).Err(); err != nil {
+	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.ClientID, qp.Alias)
+	if err := r.client.Del(ctx, pattern).Err(); err != nil {
+		return err
+	}
+	uniqueKey := fmt.Sprintf("unique:%s", qp.Alias)
+	if err := r.client.Del(ctx, uniqueKey).Err(); err != nil {
 		return err
 	}
 	return nil
@@ -97,9 +132,9 @@ func (r *RedisRepository) Ping(ctx context.Context) error {
 }
 
 func (r *RedisRepository) Check(ctx context.Context, pattern, key string) bool {
-	exists, err := r.client.HExists(ctx, pattern, key).Result()
+	exists, err := r.client.Exists(ctx, pattern).Result()
 	if err != nil {
 		return false
 	}
-	return exists
+	return exists > 0
 }

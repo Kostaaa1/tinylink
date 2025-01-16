@@ -83,7 +83,7 @@ func generateRandHex(l int) string {
 	return hex.EncodeToString(b)
 }
 
-func generateTinylink(clientID, url string, length int) string {
+func createHashAlias(clientID, url string, length int) string {
 	s := clientID + url
 	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:length]
 }
