@@ -17,8 +17,8 @@ func (a *app) Routes() *mux.Router {
 	r.HandleFunc("/", a.Index).Methods("GET")
 	r.HandleFunc("/getAll", a.GetAll).Methods("GET")
 	r.HandleFunc("/create", a.Create).Methods("POST")
-	r.HandleFunc("/{tinylink}", a.Redirect).Methods("GET")
-	r.HandleFunc("/{tinylink}", a.DeleteTinylink).Methods("DELETE")
+	r.HandleFunc("/{alias}", a.Redirect).Methods("GET")
+	r.HandleFunc("/{alias}", a.DeleteTinylink).Methods("DELETE")
 
 	return r
 }

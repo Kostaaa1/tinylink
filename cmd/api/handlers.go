@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
-	"github.com/Kostaaa1/tinylink/internal/models"
 	"github.com/Kostaaa1/tinylink/internal/repository/storage"
 	"github.com/gorilla/mux"
-	"github.com/skip2/go-qrcode"
 )
 
 var (
@@ -41,11 +40,10 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("CALLED")
-
-	links, err := a.storage.GetAll(ctx, storage.QueryParams{UserID: sessionID})
+	links, err := a.storage.GetAll(ctx, storage.QueryParams{ClientID: sessionID})
 	if err != nil {
-		a.errorResponse(w, r, http.StatusInternalServerError, "failed to get all tinylinks")
+		// a.errorResponse(w, r, http.StatusInternalServerError, "failed to get all tinylinks")
+		a.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -56,7 +54,8 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		URL string `json:"url"`
+		URL   string `json:"url"`
+		Alias string `json:"alias"`
 	}
 
 	if err := a.readJSON(r, &input); err != nil {
@@ -64,33 +63,35 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, _ := getSessionID(r)
-	tlHash := generateTinylink(sessionID, input.URL, 8)
+	_, err := url.Parse(input.URL)
+	if err != nil {
+		a.logError(r, err)
+		a.errorResponse(w, r, http.StatusBadRequest, "provided URL is invalid")
+		return
+	}
 
-	pngBytes, err := qrcode.Encode(fmt.Sprintf("http://localhost:%s/%s", a.config.port, tlHash), qrcode.Medium, 127)
+	sessionID, _ := getSessionID(r)
+	qp := storage.QueryParams{ClientID: sessionID}
+
+	var alias string
+	if input.Alias == "" {
+		alias = createHashAlias(sessionID, input.URL, 8)
+	} else {
+		alias = input.Alias
+		qp.CheckUnique = true
+	}
+
+	tl, err := a.newTinylink(input.URL, alias)
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
 		return
 	}
 
-	tl := &models.Tinylink{
-		ID:          "random-id",
-		Host:        "http://localhost:3000",
-		Hash:        tlHash,
-		OriginalURL: input.URL,
-		QR: models.QR{
-			Data:     pngBytes,
-			Width:    127,
-			Height:   127,
-			Size:     len(pngBytes),
-			MimeType: http.DetectContentType(pngBytes),
-		},
-	}
+	fmt.Println("Alias:", tl)
 
-	newTl, err := a.storage.Create(ctx, tl, storage.QueryParams{UserID: sessionID})
+	newTl, err := a.storage.Create(ctx, tl, qp)
 	if err != nil {
-		a.logError(r, err)
-		a.errorResponse(w, r, http.StatusInternalServerError, "failed to create new record")
+		a.serverErrorResponse(w, r, err)
 		return
 	}
 
@@ -101,10 +102,9 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) DeleteTinylink(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := getSessionID(r)
-	tinylink := mux.Vars(r)["tinylink"]
+	tinylink := mux.Vars(r)["alias"]
 
-	if err := a.storage.Delete(ctx, storage.QueryParams{UserID: sessionID, ID: tinylink}); err != nil {
-		a.logError(r, err)
+	if err := a.storage.Delete(ctx, storage.QueryParams{ClientID: sessionID, Alias: tinylink}); err != nil {
 		a.errorResponse(w, r, http.StatusBadRequest, "failed to delete tinylink")
 		return
 	}
@@ -116,11 +116,10 @@ func (a *app) DeleteTinylink(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) Redirect(w http.ResponseWriter, r *http.Request) {
 	sessionID, _ := getSessionID(r)
-	tinylink := mux.Vars(r)["tinylink"]
+	tinylink := mux.Vars(r)["alias"]
 
-	tl, err := a.storage.Get(ctx, storage.QueryParams{UserID: sessionID, ID: tinylink})
+	tl, err := a.storage.Get(ctx, storage.QueryParams{ClientID: sessionID, Alias: tinylink})
 	if err != nil {
-		a.logError(r, err)
 		a.errorResponse(w, r, http.StatusInternalServerError, "no data under this hash")
 		return
 	}

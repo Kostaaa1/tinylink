@@ -7,8 +7,9 @@ import (
 )
 
 type QueryParams struct {
-	UserID string
-	ID     string
+	ClientID    string
+	Alias       string
+	CheckUnique bool
 }
 
 type Storage interface {
@@ -17,4 +18,5 @@ type Storage interface {
 	Create(ctx context.Context, tl *models.Tinylink, qp QueryParams) (*models.Tinylink, error)
 	Get(ctx context.Context, qp QueryParams) (*models.Tinylink, error)
 	Ping(ctx context.Context) error
+	ValidAlias(ctx context.Context, alias string) (bool, error)
 }
