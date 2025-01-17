@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -87,11 +86,9 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("Alias:", tl)
-
 	newTl, err := a.storage.Create(ctx, tl, qp)
 	if err != nil {
-		a.serverErrorResponse(w, r, err)
+		a.errorResponse(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 

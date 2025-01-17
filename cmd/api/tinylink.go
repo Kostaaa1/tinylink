@@ -13,16 +13,15 @@ func (a *app) newTinylink(URL, alias string) (*models.Tinylink, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &models.Tinylink{
 		Host:        "http://localhost:3000",
 		Alias:       alias,
 		OriginalURL: URL,
 		QR: models.QR{
 			Data:     pngBytes,
-			Width:    127,
-			Height:   127,
-			Size:     len(pngBytes),
+			Width:    "127",
+			Height:   "127",
+			Size:     string(len(pngBytes)),
 			MimeType: http.DetectContentType(pngBytes),
 		},
 	}, nil

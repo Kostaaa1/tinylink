@@ -19,4 +19,5 @@ type Storage interface {
 	Get(ctx context.Context, qp QueryParams) (*models.Tinylink, error)
 	Ping(ctx context.Context) error
 	ValidAlias(ctx context.Context, alias string) (bool, error)
+	ValidOriginalURL(ctx context.Context, URL string, qp QueryParams) (bool, error)
 }

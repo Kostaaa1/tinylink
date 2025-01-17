@@ -2,9 +2,9 @@ package models
 
 type QR struct {
 	Data     []byte `json:"data"`
-	Width    int    `json:"width"`
-	Height   int    `json:"height"`
-	Size     int    `json:"size"`
+	Width    string `json:"width"`
+	Height   string `json:"height"`
+	Size     string `json:"size"`
 	MimeType string `json:"mimetype"`
 }
 
