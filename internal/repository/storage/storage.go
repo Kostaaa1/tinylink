@@ -7,17 +7,16 @@ import (
 )
 
 type QueryParams struct {
-	ClientID    string
-	Alias       string
-	CheckUnique bool
+	ClientID string
+	Alias    string
 }
 
 type Storage interface {
 	GetAll(ctx context.Context, qp QueryParams) ([]*models.Tinylink, error)
 	Delete(ctx context.Context, qp QueryParams) error
-	Create(ctx context.Context, tl *models.Tinylink, qp QueryParams) (*models.Tinylink, error)
+	Create(ctx context.Context, tl *models.Tinylink, qp QueryParams) error
 	Get(ctx context.Context, qp QueryParams) (*models.Tinylink, error)
 	Ping(ctx context.Context) error
-	ValidAlias(ctx context.Context, alias string) (bool, error)
-	ValidOriginalURL(ctx context.Context, URL string, qp QueryParams) (bool, error)
+	ValidateAlias(ctx context.Context, alias string) error
+	ValidateOriginalURL(ctx context.Context, clientID, URL string) error
 }

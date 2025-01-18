@@ -22,6 +22,9 @@ type config struct {
 	port        string
 	env         string
 	storageType string
+	// domain      string
+	// protocol    string
+	// tld         string
 }
 
 type app struct {

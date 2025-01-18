@@ -9,7 +9,7 @@ type QR struct {
 }
 
 type Tinylink struct {
-	Host        string `json:"host"`
+	Tinylink    string `json:"tinylink"`
 	Alias       string `json:"alias"`
 	OriginalURL string `json:"original_url"`
 	QR          QR     `json:"qr"`
