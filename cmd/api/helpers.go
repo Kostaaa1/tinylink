@@ -65,7 +65,7 @@ type contextKey string
 
 const tinylinkSessionKey contextKey = "tinylink_session"
 
-func getSessionID(r *http.Request) (string, error) {
+func createClientID(r *http.Request) (string, error) {
 	session, ok := r.Context().Value(tinylinkSessionKey).(*sessions.Session)
 	if !ok {
 		return "", errors.New("no session found in context")
@@ -86,6 +86,10 @@ func generateRandHex(l int) string {
 func createHashAlias(clientID, url string, length int) string {
 	s := clientID + url
 	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:length]
+}
+
+func (a *app) getServerURL() string {
+	return "http://localhost:3000"
 }
 
 func getClientIP(r *http.Request) string {
