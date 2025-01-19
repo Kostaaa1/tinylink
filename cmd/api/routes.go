@@ -6,13 +6,14 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// accept handler
 func (a *app) Routes() *mux.Router {
 	r := mux.NewRouter()
 
 	r.MethodNotAllowedHandler = http.HandlerFunc(a.methodNotAllowedResponse)
 	r.NotFoundHandler = http.HandlerFunc(a.notFoundResponse)
 
-	r.Use(a.persistSessionMW)
+	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
 
 	r.HandleFunc("/", a.Index).Methods("GET")
 	r.HandleFunc("/getAll", a.GetAll).Methods("GET")

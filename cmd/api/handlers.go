@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/Kostaaa1/tinylink/internal/repository/storage"
+	"github.com/Kostaaa1/tinylink/internal/domain"
 	"github.com/gorilla/mux"
 )
 
@@ -40,7 +40,7 @@ func (a *app) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	links, err := a.storage.GetAll(ctx, storage.QueryParams{ClientID: clientID})
+	links, err := a.storage.GetAll(ctx, domain.QueryParams{ClientID: clientID})
 	if err != nil {
 		a.serverErrorResponse(w, r, err)
 		return
@@ -98,7 +98,7 @@ func (a *app) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	qp := storage.QueryParams{ClientID: clientID, Alias: input.Alias}
+	qp := domain.QueryParams{ClientID: clientID, Alias: input.Alias}
 	if err := a.storage.Create(ctx, tl, qp); err != nil {
 		a.errorResponse(w, r, http.StatusBadRequest, err.Error())
 		return
@@ -113,7 +113,7 @@ func (a *app) DeleteTinylink(w http.ResponseWriter, r *http.Request) {
 	clientID, _ := createClientID(r)
 	tinylink := mux.Vars(r)["alias"]
 
-	if err := a.storage.Delete(ctx, storage.QueryParams{ClientID: clientID, Alias: tinylink}); err != nil {
+	if err := a.storage.Delete(ctx, domain.QueryParams{ClientID: clientID, Alias: tinylink}); err != nil {
 		a.errorResponse(w, r, http.StatusBadRequest, "failed to delete tinylink")
 		return
 	}
@@ -132,7 +132,7 @@ func (a *app) Redirect(w http.ResponseWriter, r *http.Request) {
 
 	tinylink := mux.Vars(r)["alias"]
 
-	tl, err := a.storage.Get(ctx, storage.QueryParams{ClientID: clientID, Alias: tinylink})
+	tl, err := a.storage.Get(ctx, domain.QueryParams{ClientID: clientID, Alias: tinylink})
 	if err != nil {
 		a.errorResponse(w, r, http.StatusInternalServerError, "no data under this hash")
 		return

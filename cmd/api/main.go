@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -11,27 +10,28 @@ import (
 	"os"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/repository/storage"
-	"github.com/Kostaaa1/tinylink/pkg/repos/redisrepo"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
 )
 
 type config struct {
 	port        string
 	env         string
 	storageType string
-	// domain      string
-	// protocol    string
-	// tld         string
+	redis       struct {
+	}
+	limiter struct {
+		rps     float64
+		burst   int
+		enabled bool
+	}
 }
 
 type app struct {
-	config
+	cfg         config
 	logger      *slog.Logger
 	cookiestore *sessions.CookieStore
-	storage     storage.Storage
+	// service     *service.StorageService
 }
 
 func main() {
@@ -41,19 +41,21 @@ func main() {
 	}
 
 	var cfg config
-
 	flag.StringVar(&cfg.port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.storageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
+	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter requests-per-second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
+	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// storage := NewStorageRepository(cfg)
 
 	a := app{
 		logger:      logger,
-		config:      cfg,
+		cfg:         cfg,
 		cookiestore: newCookieStore(),
-		storage:     newStorage(cfg.storageType),
 	}
 
 	srv := &http.Server{
@@ -86,24 +88,38 @@ func newCookieStore() *sessions.CookieStore {
 	return sessions.NewCookieStore(authKey, encryptionKey)
 }
 
-func newStorage(storageType string) storage.Storage {
-	ctx := context.Background()
+// needs to be moved. Config needs to be seperated. Add support for config files.
+// func NewStorageRepository(cfg config) domain.StorageRepository {
+// 	var repo domain.StorageRepository
+// 	switch cfg.storageType {
+// 	case "redis":
+// 		client := redis.NewClient(&redis.Options{
+// 			Addr:     "localhost:6379",
+// 			Password: "lagaosiprovidnokopas",
+// 			DB:       0,
+// 		})
+// 		repo = repository.NewRedisRepo(client)
+// 	case "sqlite":
+// 	default:
+// 	}
+// 	return repo
+// }
 
-	var storage storage.Storage
-	switch storageType {
-	case "redis":
-		storage = redisrepo.NewRedisRepo(ctx, &redis.Options{
-			Addr:     "localhost:6379",
-			Password: "lagaosiprovidnokopas",
-			DB:       0,
-		})
-	case "sqlite":
-	default:
-	}
-
-	if err := storage.Ping(ctx); err != nil {
-		log.Fatalf("Storage ping failed for %s: %v", storageType, err)
-	}
-
-	return storage
-}
+// func newStorage(storageType string) domain.Storage {
+// 	ctx := context.Background()
+// 	var storage domain.Storage
+// 	switch storageType {
+// 	case "redis":
+// 		storage = redis.NewClient(&redis.Options{
+// 			Addr:     "localhost:6379",
+// 			Password: "lagaosiprovidnokopas",
+// 			DB:       0,
+// 		})
+// 	case "sqlite":
+// 	default:
+// 	}
+// 	if err := storage.Ping(ctx); err != nil {
+// 		log.Fatalf("Storage ping failed for %s: %v", storageType, err)
+// 	}
+// 	return storage
+// }
