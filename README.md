@@ -7,13 +7,15 @@ URL shortener
 
 ## Table of Contents
 
-- [Project Name](#project-name)
+- [Tinylink](#tinylink)
 	- [Table of Contents](#table-of-contents)
+	- [Goals](#goals)
+	- [Features](#features)
 ---
 
 ## Goals
 
-- DDD architecture
+- DDD architecture - https://github.com/sklinkert/go-ddd
 - gorilla/sessions - use cookie store to store TTL sessions
 - Use Redis/SQLite/SQLx
 - Implement Rate limiter 
