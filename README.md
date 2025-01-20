@@ -13,26 +13,28 @@ URL shortener
 
 ## Goals
 
-- URL Shortener (use HTMX, templ, maybe svelte?)
-- Repository pattern for implementing storage (use Redis, SQLite)
-- Explore new Headers
+- DDD architecture
 - gorilla/sessions - use cookie store to store TTL sessions
-
-- URL shortener web app (HTMX, html/template)
-- Redis
-- Experiment with new Headers - learn and use some new headers
-- Sessions - gorilla/sessions (learn about cookies/sessions in-depth)
-- QR - use library first, build your own later
-- Learn about logging (net/slog)
-- Rate limiter
+- Use Redis/SQLite/SQLx
+- Implement Rate limiter 
+- Explore new Headers
+- Users - Auth/OAuth
+- Email service
+- Logging
 - Docker
-- Deploy (Railway, Render)
-- Learn about Github Actions
-- TLS
+- Deploy/Github Actions
 
 -- Extra
+- TLS
 - Automate stuff with shell
-- O'Auth
 - Payment Stripe?
 
 ---
+
+## Features
+- Password protected links
+- Browser extension - single click to get tinylink
+
+** Extra **
+- Analytics - click rate/geolocation/referrer sources/device types...
+- A/B testing ? - Enable users to create multiple versions of a short link to test which one performs better in terms of clicks. ?
