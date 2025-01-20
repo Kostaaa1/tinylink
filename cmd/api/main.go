@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 type config struct {
@@ -19,6 +21,7 @@ type config struct {
 	env         string
 	storageType string
 	redis       struct {
+		addr string
 	}
 	limiter struct {
 		rps     float64
@@ -47,10 +50,10 @@ func main() {
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter requests-per-second")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.StringVar(&cfg.redis.addr, "redis-addr", "redis://:lagaosiprovidnokopas@localhost:6379/0", "Redis addres [redis://:password@localhost:6379/0]")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	// storage := NewStorageRepository(cfg)
 
 	a := app{
 		logger:      logger,
@@ -88,38 +91,26 @@ func newCookieStore() *sessions.CookieStore {
 	return sessions.NewCookieStore(authKey, encryptionKey)
 }
 
-// needs to be moved. Config needs to be seperated. Add support for config files.
-// func NewStorageRepository(cfg config) domain.StorageRepository {
-// 	var repo domain.StorageRepository
-// 	switch cfg.storageType {
-// 	case "redis":
-// 		client := redis.NewClient(&redis.Options{
-// 			Addr:     "localhost:6379",
-// 			Password: "lagaosiprovidnokopas",
-// 			DB:       0,
-// 		})
-// 		repo = repository.NewRedisRepo(client)
-// 	case "sqlite":
-// 	default:
-// 	}
-// 	return repo
-// }
+func newStorage(cfg config) interface{} {
+	ctx := context.Background()
 
-// func newStorage(storageType string) domain.Storage {
-// 	ctx := context.Background()
-// 	var storage domain.Storage
-// 	switch storageType {
-// 	case "redis":
-// 		storage = redis.NewClient(&redis.Options{
-// 			Addr:     "localhost:6379",
-// 			Password: "lagaosiprovidnokopas",
-// 			DB:       0,
-// 		})
-// 	case "sqlite":
-// 	default:
-// 	}
-// 	if err := storage.Ping(ctx); err != nil {
-// 		log.Fatalf("Storage ping failed for %s: %v", storageType, err)
-// 	}
-// 	return storage
-// }
+	var storage interface{}
+	switch cfg.storageType {
+	case "redis":
+		client := redis.NewClient(&redis.Options{
+			Addr:     "localhost:6379",
+			Password: "lagaosiprovidnokopas",
+			DB:       0,
+		})
+		if err := client.Ping(ctx).Err(); err != nil {
+			log.Fatalf("Storage ping failed for %s: %v", cfg.storageType, err)
+		}
+		storage = client
+	case "sqlite":
+		// Add sqlite initialization here
+	default:
+		log.Fatalf("Unsupported storage type: %s", cfg.storageType)
+	}
+
+	return storage
+}

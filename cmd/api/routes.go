@@ -15,11 +15,11 @@ func (a *app) Routes() *mux.Router {
 
 	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
 
-	r.HandleFunc("/", a.Index).Methods("GET")
-	r.HandleFunc("/getAll", a.GetAll).Methods("GET")
-	r.HandleFunc("/create", a.Create).Methods("POST")
-	r.HandleFunc("/{alias}", a.Redirect).Methods("GET")
-	r.HandleFunc("/{alias}", a.DeleteTinylink).Methods("DELETE")
+	// r.HandleFunc("/", a.Index).Methods("GET")
+	// r.HandleFunc("/getAll", a.GetAll).Methods("GET")
+	// r.HandleFunc("/create", a.Create).Methods("POST")
+	// r.HandleFunc("/{alias}", a.Redirect).Methods("GET")
+	// r.HandleFunc("/{alias}", a.DeleteTinylink).Methods("DELETE")
 
 	return r
 }
