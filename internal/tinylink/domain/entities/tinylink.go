@@ -1,4 +1,4 @@
-package tinylink
+package entities
 
 import (
 	"fmt"
@@ -7,6 +7,11 @@ import (
 
 	"github.com/skip2/go-qrcode"
 )
+
+type QueryParams struct {
+	ClientID string
+	Alias    string
+}
 
 type QR struct {
 	Data     []byte `json:"data"`
@@ -24,7 +29,9 @@ type Tinylink struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func New(appURL, originalURL, alias string) (*Tinylink, error) {
+// add validation logic / maybe some helper function
+
+func NewTinylink(appURL, originalURL, alias string) (*Tinylink, error) {
 	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", appURL, alias), qrcode.Medium, 127)
 	if err != nil {
 		return nil, err
@@ -44,7 +51,7 @@ func New(appURL, originalURL, alias string) (*Tinylink, error) {
 	}, nil
 }
 
-func mapToTinylink(data map[string]string) *Tinylink {
+func MapToTinylink(data map[string]string) *Tinylink {
 	return &Tinylink{
 		Tinylink:    data["host"],
 		Alias:       data["alias"],
