@@ -70,6 +70,8 @@ func main() {
 	r.NotFoundHandler = http.HandlerFunc(a.notFoundResponse)
 	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
 
+	NewTinylinkController(r, service)
+
 	srv := &http.Server{
 		Addr:           ":" + cfg.port,
 		Handler:        r,
