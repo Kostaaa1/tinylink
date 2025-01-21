@@ -1,4 +1,4 @@
-package entities
+package main
 
 import (
 	"fmt"
@@ -30,7 +30,6 @@ type Tinylink struct {
 }
 
 // add validation logic / maybe some helper function
-
 func NewTinylink(appURL, originalURL, alias string) (*Tinylink, error) {
 	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", appURL, alias), qrcode.Medium, 127)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -34,7 +35,7 @@ type app struct {
 	cfg         config
 	logger      *slog.Logger
 	cookiestore *sessions.CookieStore
-	// service     *service.StorageService
+	storage     TinylinkRepository
 }
 
 func main() {
@@ -44,6 +45,7 @@ func main() {
 	}
 
 	var cfg config
+
 	flag.StringVar(&cfg.port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.storageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
@@ -59,11 +61,18 @@ func main() {
 		logger:      logger,
 		cfg:         cfg,
 		cookiestore: newCookieStore(),
+		storage:     newStorage(cfg),
 	}
+
+	r := mux.NewRouter()
+
+	r.MethodNotAllowedHandler = http.HandlerFunc(a.methodNotAllowedResponse)
+	r.NotFoundHandler = http.HandlerFunc(a.notFoundResponse)
+	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
 
 	srv := &http.Server{
 		Addr:           ":" + cfg.port,
-		Handler:        a.Routes(),
+		Handler:        r,
 		IdleTimeout:    1 * time.Minute,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   30 * time.Second,
@@ -91,10 +100,11 @@ func newCookieStore() *sessions.CookieStore {
 	return sessions.NewCookieStore(authKey, encryptionKey)
 }
 
-func newStorage(cfg config) interface{} {
+func newStorage(cfg config) TinylinkRepository {
 	ctx := context.Background()
 
-	var storage interface{}
+	var tinylinkRepo TinylinkRepository
+
 	switch cfg.storageType {
 	case "redis":
 		client := redis.NewClient(&redis.Options{
@@ -105,12 +115,12 @@ func newStorage(cfg config) interface{} {
 		if err := client.Ping(ctx).Err(); err != nil {
 			log.Fatalf("Storage ping failed for %s: %v", cfg.storageType, err)
 		}
-		storage = client
+		tinylinkRepo = NewRedisTinylinkRepository(client)
 	case "sqlite":
 		// Add sqlite initialization here
 	default:
 		log.Fatalf("Unsupported storage type: %s", cfg.storageType)
 	}
 
-	return storage
+	return tinylinkRepo
 }
