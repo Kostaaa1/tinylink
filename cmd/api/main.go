@@ -61,10 +61,10 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	a := app{
-		logger:      logger,
-		cfg:         cfg,
-		cookiestore: newCookieStore(),
-		storage:     newStorage(cfg),
+		logger: logger,
+		cfg:    cfg,
+		// cookiestore: newCookieStore(),
+		storage: newStorage(cfg),
 	}
 
 	r := mux.NewRouter()
@@ -94,14 +94,14 @@ func newCookieStore() *sessions.CookieStore {
 		fmt.Println("No key found in env. Generating...")
 		authKeyHex = generateRandHex(32)
 	}
-	authKey, _ := hex.DecodeString(authKeyHex)
 
+	authKey, _ := hex.DecodeString(authKeyHex)
 	encryptionKeyHex := os.Getenv("TINYLINK_ENCRYPTION_KEY")
 	if encryptionKeyHex == "" {
 		encryptionKeyHex = generateRandHex(16)
 	}
-	encryptionKey, _ := hex.DecodeString(encryptionKeyHex)
 
+	encryptionKey, _ := hex.DecodeString(encryptionKeyHex)
 	return sessions.NewCookieStore(authKey, encryptionKey)
 }
 
