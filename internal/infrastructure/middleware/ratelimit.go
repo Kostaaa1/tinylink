@@ -6,10 +6,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/errors"
 	"golang.org/x/time/rate"
 )
 
-func RateLimit(next http.Handler) http.Handler {
+type Ratelimit struct {
+	enabled bool
+	burst   int
+	rps     float64
+}
+
+func New(enabled bool, burst int, rps float64) *Ratelimit {
+	return &Ratelimit{
+		enabled: enabled,
+		burst:   burst,
+		rps:     rps,
+	}
+}
+
+func (rl *Ratelimit) Middleware(next http.Handler) http.Handler {
 	type client struct {
 		limiter  *rate.Limiter
 		lastSeen time.Time
@@ -32,10 +47,10 @@ func RateLimit(next http.Handler) http.Handler {
 		}
 	}()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if a.cfg.limiter.enabled {
+		if rl.enabled {
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil {
-				a.serverErrorResponse(w, r, err)
+				errors.ServerErrorResponse(w, r, err)
 				return
 			}
 
@@ -43,13 +58,13 @@ func RateLimit(next http.Handler) http.Handler {
 
 			c, ok := clients[ip]
 			if !ok {
-				clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(a.cfg.limiter.rps), a.cfg.limiter.burst)}
+				clients[ip] = &client{limiter: rate.NewLimiter(rate.Limit(rl.rps), rl.burst)}
 			}
 
 			c.lastSeen = time.Now()
 			if !c.limiter.Allow() {
 				mu.Unlock()
-				a.rateLimitExceeded(w, r)
+				errors.RateLimitExceeded(w, r)
 				return
 			}
 

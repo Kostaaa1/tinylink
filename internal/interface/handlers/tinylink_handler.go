@@ -7,8 +7,8 @@ import (
 	"net/url"
 
 	"github.com/Kostaaa1/tinylink/internal/application/interfaces"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/session"
 	"github.com/Kostaaa1/tinylink/internal/interface/utils/jsonutil"
-	"github.com/Kostaaa1/tinylink/internal/interface/utils/sessionutil"
 	"github.com/gorilla/mux"
 )
 
@@ -28,7 +28,7 @@ func NewTinylinkHandler(r *mux.Router, tinylinkService interfaces.TinylinkServic
 
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
-	sessionID, err := sessionutil.GetID(r)
+	sessionID, err := session.GetID(r)
 	if err != nil {
 		return
 	}
@@ -60,7 +60,7 @@ func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionID, err := sessionutil.GetID(r)
+	sessionID, err := session.GetID(r)
 	if err != nil {
 		return
 	}
@@ -78,7 +78,7 @@ func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := sessionutil.GetID(r)
+	sessionID, err := session.GetID(r)
 	if err != nil {
 		return
 	}
@@ -95,7 +95,7 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	sessionID, err := sessionutil.GetID(r)
+	sessionID, err := session.GetID(r)
 	if err != nil {
 		return
 	}
