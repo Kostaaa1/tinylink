@@ -11,6 +11,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/application/services"
+	"github.com/Kostaaa1/tinylink/internal/domain/repositories"
+	redisdb "github.com/Kostaaa1/tinylink/internal/infrastructure/redis"
+	"github.com/Kostaaa1/tinylink/internal/interface/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
@@ -35,7 +39,7 @@ type app struct {
 	cfg         config
 	logger      *slog.Logger
 	cookiestore *sessions.CookieStore
-	storage     TinylinkRepository
+	storage     repositories.TinylinkRepository
 }
 
 func main() {
@@ -45,7 +49,6 @@ func main() {
 	}
 
 	var cfg config
-
 	flag.StringVar(&cfg.port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.StringVar(&cfg.storageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
@@ -65,12 +68,12 @@ func main() {
 	}
 
 	r := mux.NewRouter()
-
 	r.MethodNotAllowedHandler = http.HandlerFunc(a.methodNotAllowedResponse)
 	r.NotFoundHandler = http.HandlerFunc(a.notFoundResponse)
-	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
 
-	NewTinylinkController(r, service)
+	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
+	tinylinkService := services.NewTinylinkService(a.storage)
+	handlers.NewTinylinkHandler(r, tinylinkService)
 
 	srv := &http.Server{
 		Addr:           ":" + cfg.port,
@@ -102,10 +105,9 @@ func newCookieStore() *sessions.CookieStore {
 	return sessions.NewCookieStore(authKey, encryptionKey)
 }
 
-func newStorage(cfg config) TinylinkRepository {
+func newStorage(cfg config) repositories.TinylinkRepository {
 	ctx := context.Background()
-
-	var tinylinkRepo TinylinkRepository
+	var tinylinkRepo repositories.TinylinkRepository
 
 	switch cfg.storageType {
 	case "redis":
@@ -117,7 +119,7 @@ func newStorage(cfg config) TinylinkRepository {
 		if err := client.Ping(ctx).Err(); err != nil {
 			log.Fatalf("Storage ping failed for %s: %v", cfg.storageType, err)
 		}
-		tinylinkRepo = NewRedisTinylinkRepository(client)
+		tinylinkRepo = redisdb.NewTinylinkRepository(client)
 	case "sqlite":
 		// Add sqlite initialization here
 	default:
