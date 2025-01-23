@@ -9,8 +9,8 @@ import (
 )
 
 type QueryParams struct {
-	ClientID string
-	Alias    string
+	SessionID string
+	Alias     string
 }
 
 type QR struct {

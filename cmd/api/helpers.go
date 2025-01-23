@@ -65,7 +65,7 @@ type contextKey string
 
 const tinylinkSessionKey contextKey = "tinylink_session"
 
-func createClientID(r *http.Request) (string, error) {
+func getSessionID(r *http.Request) (string, error) {
 	session, ok := r.Context().Value(tinylinkSessionKey).(*sessions.Session)
 	if !ok {
 		return "", errors.New("no session found in context")
