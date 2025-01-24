@@ -1,10 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/hex"
-	"flag"
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -12,71 +8,38 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/application/services"
-	"github.com/Kostaaa1/tinylink/internal/domain/repositories"
-	redisdb "github.com/Kostaaa1/tinylink/internal/infrastructure/redis"
+	"github.com/Kostaaa1/tinylink/internal/errors"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware"
+	mylogger "github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/logger"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/ratelimiter"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/session"
 	"github.com/Kostaaa1/tinylink/internal/interface/handlers"
+	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
-	"github.com/joho/godotenv"
-	"github.com/redis/go-redis/v9"
 )
 
-type config struct {
-	port        string
-	env         string
-	storageType string
-	redis       struct {
-		addr string
-	}
-	limiter struct {
-		rps     float64
-		burst   int
-		enabled bool
-	}
-}
-
-type app struct {
-	cfg         config
-	logger      *slog.Logger
-	cookiestore *sessions.CookieStore
-	storage     repositories.TinylinkRepository
-}
-
 func main() {
-	err := godotenv.Load()
+	cfg := config.New()
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	r := mux.NewRouter()
+	r.MethodNotAllowedHandler = http.HandlerFunc(errors.MethodNotAllowedResponse)
+	r.NotFoundHandler = http.HandlerFunc(errors.NotFoundResponse)
+
+	limit := ratelimiter.New(cfg.Limiter)
+	r.Use(middleware.RecoverPanic, mylogger.Middleware, limit.Middleware, session.Middleware)
+
+	repos, err := infrastructure.NewRepositories(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	var cfg config
-	flag.StringVar(&cfg.port, "port", "3000", "Server address port")
-	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
-	flag.StringVar(&cfg.storageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
-	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter requests-per-second")
-	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter maximum burst")
-	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
-	flag.StringVar(&cfg.redis.addr, "redis-addr", "redis://:lagaosiprovidnokopas@localhost:6379/0", "Redis addres [redis://:password@localhost:6379/0]")
-	flag.Parse()
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	a := app{
-		logger: logger,
-		cfg:    cfg,
-		// cookiestore: newCookieStore(),
-		storage: newStorage(cfg),
-	}
-
-	r := mux.NewRouter()
-	r.MethodNotAllowedHandler = http.HandlerFunc(a.methodNotAllowedResponse)
-	r.NotFoundHandler = http.HandlerFunc(a.notFoundResponse)
-
-	r.Use(a.recoverPanic, a.rateLimit, a.persistSessionMW)
-	tinylinkService := services.NewTinylinkService(a.storage)
-	handlers.NewTinylinkHandler(r, tinylinkService)
+	handlers.NewTinylinkHandler(r, services.NewTinylinkService(repos.Tinylink))
 
 	srv := &http.Server{
-		Addr:           ":" + cfg.port,
+		Addr:           ":" + cfg.Port,
 		Handler:        r,
 		IdleTimeout:    1 * time.Minute,
 		ReadTimeout:    10 * time.Second,
@@ -86,45 +49,4 @@ func main() {
 
 	logger.Info("Server running on", "port", srv.Addr)
 	log.Fatal(srv.ListenAndServe())
-}
-
-func newCookieStore() *sessions.CookieStore {
-	authKeyHex := os.Getenv("TINYLINK_AUTH_KEY")
-	if authKeyHex == "" {
-		fmt.Println("No key found in env. Generating...")
-		authKeyHex = generateRandHex(32)
-	}
-
-	authKey, _ := hex.DecodeString(authKeyHex)
-	encryptionKeyHex := os.Getenv("TINYLINK_ENCRYPTION_KEY")
-	if encryptionKeyHex == "" {
-		encryptionKeyHex = generateRandHex(16)
-	}
-
-	encryptionKey, _ := hex.DecodeString(encryptionKeyHex)
-	return sessions.NewCookieStore(authKey, encryptionKey)
-}
-
-func newStorage(cfg config) repositories.TinylinkRepository {
-	ctx := context.Background()
-	var tinylinkRepo repositories.TinylinkRepository
-
-	switch cfg.storageType {
-	case "redis":
-		client := redis.NewClient(&redis.Options{
-			Addr:     "localhost:6379",
-			Password: "lagaosiprovidnokopas",
-			DB:       0,
-		})
-		if err := client.Ping(ctx).Err(); err != nil {
-			log.Fatalf("Storage ping failed for %s: %v", cfg.storageType, err)
-		}
-		tinylinkRepo = redisdb.NewTinylinkRepository(client)
-	case "sqlite":
-		// Add sqlite initialization here
-	default:
-		log.Fatalf("Unsupported storage type: %s", cfg.storageType)
-	}
-
-	return tinylinkRepo
 }
