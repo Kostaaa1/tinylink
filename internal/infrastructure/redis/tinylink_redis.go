@@ -16,20 +16,6 @@ func NewTinylinkRepository(client *redis.Client) *RedisRepository {
 	return &RedisRepository{client: client}
 }
 
-func (r *RedisRepository) CheckAlias(ctx context.Context, alias string) error {
-	n, err := r.client.Exists(ctx, fmt.Sprintf("unique:%s", alias)).Result()
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		return fmt.Errorf("provided alias is taken: %s", alias)
-	}
-	if err := r.client.Set(ctx, fmt.Sprintf("unique:%s", alias), nil, 0).Err(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *RedisRepository) Save(ctx context.Context, tl *entities.Tinylink, qp entities.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.SessionID, tl.Alias)
 	if _, err := r.client.Pipelined(ctx, func(rdb redis.Pipeliner) error {
@@ -114,19 +100,41 @@ func (r *RedisRepository) Delete(ctx context.Context, qp entities.QueryParams) e
 	return nil
 }
 
+func (r *RedisRepository) CheckAlias(ctx context.Context, alias string) error {
+	n, err := r.client.Exists(ctx, fmt.Sprintf("unique:%s", alias)).Result()
+	if err != nil {
+		return err
+	}
+
+	if n > 0 {
+		return fmt.Errorf("provided alias is taken: %s", alias)
+	}
+
+	if err := r.client.Set(ctx, fmt.Sprintf("unique:%s", alias), nil, 0).Err(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *RedisRepository) CheckOriginalURL(ctx context.Context, clientID, URL string) error {
 	// O(1)
 	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
+
 	n, err := r.client.Exists(ctx, pattern).Result()
 	if err != nil {
 		return err
 	}
+
 	if n == 0 {
 		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
 			return err
 		}
+		return nil
 	}
-	return nil
+
+	return fmt.Errorf("provided URL already exists: %s", URL)
+
+	// return nil
 	// O(n)
 	// pattern := fmt.Sprintf("client:%s:tinylink:*", clientID)
 	// var cursor uint64
