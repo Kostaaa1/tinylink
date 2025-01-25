@@ -2,14 +2,14 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/Kostaaa1/tinylink/internal/application/interfaces"
-	"github.com/Kostaaa1/tinylink/internal/errors"
+	errResp "github.com/Kostaaa1/tinylink/internal/errors"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/session"
+	"github.com/Kostaaa1/tinylink/internal/interface/dto/request"
 	"github.com/Kostaaa1/tinylink/internal/interface/utils/jsonutil"
+	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/gorilla/mux"
 )
 
@@ -21,12 +21,8 @@ func NewTinylinkHandler(r *mux.Router, tinylinkService interfaces.TinylinkServic
 	h := TinylinkHandler{
 		service: tinylinkService,
 	}
-	r.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("tettttst\n"))
-	}).Methods("GET")
 	r.HandleFunc("/getAll", h.List).Methods("GET")
-	r.HandleFunc("/create", h.Create).Methods("POST")
+	r.HandleFunc("/create", h.Save).Methods("POST")
 	r.HandleFunc("/{alias}", h.Redirect).Methods("GET")
 	r.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 }
@@ -35,63 +31,64 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	sessionID, err := session.GetID(r)
 	if err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		errResp.BadRequestResponse(w, r, err)
 		return
 	}
 
 	links, err := h.service.List(ctx, sessionID)
 	if err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	fmt.Println("write links: ", links)
 	if err := jsonutil.WriteJSON(w, http.StatusOK, jsonutil.Envelope{"data": links}, nil); err != nil {
-		errors.ServerErrorResponse(w, r, err)
+		errResp.ServerErrorResponse(w, r, err)
 	}
 }
 
-func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		URL   string `json:"url"`
-		Alias string `json:"alias"`
-	}
-	if err := jsonutil.ReadJSON(r, &input); err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+func (h *TinylinkHandler) Save(w http.ResponseWriter, r *http.Request) {
+	var req request.CreateTinylinkRequest
+	if err := jsonutil.ReadJSON(r, &req); err != nil {
+		errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// validate input
-	_, err := url.Parse(input.URL)
-	if err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, fmt.Sprintf("invalid url format for: %s", input.URL))
+	v := validator.New()
+	if ok := req.IsValid(v); !ok {
+		errResp.FailedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	sessionID, err := session.GetID(r)
 	if err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		errResp.BadRequestResponse(w, r, err)
 		return
 	}
 
 	ctx := context.Background()
 
-	tl, err := h.service.Save(ctx, sessionID, input.URL, input.Alias)
+	tl, err := h.service.Save(ctx, sessionID, req.URL, req.Alias)
 	if err != nil {
-		fmt.Println("failed to create tinylink.", err)
-		errors.ServerErrorResponse(w, r, err)
+		switch err := err.(type) {
+		case errResp.URLExistsError:
+			errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		case errResp.AliasUsedError:
+			errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		default:
+			errResp.ServerErrorResponse(w, r, err)
+		}
 		return
 	}
 
-	if err := jsonutil.WriteJSON(w, http.StatusOK, jsonutil.Envelope{"data": tl}, nil); err != nil {
-		errors.ServerErrorResponse(w, r, err)
+	if err := jsonutil.WriteJSON(w, http.StatusCreated, jsonutil.Envelope{"data": tl}, nil); err != nil {
+		errResp.ServerErrorResponse(w, r, err)
 	}
 }
 
 func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := session.GetID(r)
 	if err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		errResp.BadRequestResponse(w, r, err)
 		return
 	}
 
@@ -102,6 +99,7 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+
 	w.Header().Set("Location", tl.OriginalURL)
 	w.WriteHeader(http.StatusFound)
 }
@@ -109,19 +107,22 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := session.GetID(r)
 	if err != nil {
-		errors.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		errResp.BadRequestResponse(w, r, err)
 		return
 	}
 
 	tinylink := mux.Vars(r)["alias"]
 
 	ctx := context.Background()
-
 	if err := h.service.Delete(ctx, sessionID, tinylink); err != nil {
 		return
 	}
 
-	if err := jsonutil.WriteJSON(w, http.StatusOK, jsonutil.Envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
-		// a.serverErrorResponse(w, r, err)
+	writeJSONResponse(w, r, http.StatusOK, jsonutil.Envelope{"msg": "tinylink succesfully deleted"}, nil)
+}
+
+func writeJSONResponse(w http.ResponseWriter, r *http.Request, status int, data interface{}, headers http.Header) {
+	if err := jsonutil.WriteJSON(w, status, jsonutil.Envelope{"data": data}, headers); err != nil {
+		errResp.ServerErrorResponse(w, r, err)
 	}
 }

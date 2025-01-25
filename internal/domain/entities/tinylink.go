@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -29,14 +30,21 @@ type Tinylink struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type Alias string
+
+func (a *Alias) IsValid(v *validator.Validator) bool {
+	v.Check(len(*a) >= 5, "alias", "must be at least 5 characters long")
+	return v.Valid()
+}
+
 // add validation logic / maybe some helper function
-func NewTinylink(appURL, originalURL, alias string) (*Tinylink, error) {
-	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", appURL, alias), qrcode.Medium, 127)
+func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
+	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", domain, alias), qrcode.Medium, 127)
 	if err != nil {
 		return nil, err
 	}
 	return &Tinylink{
-		Tinylink:    fmt.Sprintf("%s/%s", appURL, alias),
+		Tinylink:    fmt.Sprintf("%s/%s", domain, alias),
 		Alias:       alias,
 		OriginalURL: originalURL,
 		QR: QR{

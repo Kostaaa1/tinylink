@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Kostaaa1/tinylink/internal/domain/entities"
+	"github.com/Kostaaa1/tinylink/internal/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -105,11 +106,9 @@ func (r *RedisRepository) CheckAlias(ctx context.Context, alias string) error {
 	if err != nil {
 		return err
 	}
-
 	if n > 0 {
-		return fmt.Errorf("provided alias is taken: %s", alias)
+		return errors.AliasUsedError{Message: fmt.Sprintf("this alias is already being used: %s", alias)}
 	}
-
 	if err := r.client.Set(ctx, fmt.Sprintf("unique:%s", alias), nil, 0).Err(); err != nil {
 		return err
 	}
@@ -119,22 +118,17 @@ func (r *RedisRepository) CheckAlias(ctx context.Context, alias string) error {
 func (r *RedisRepository) CheckOriginalURL(ctx context.Context, clientID, URL string) error {
 	// O(1)
 	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
-
 	n, err := r.client.Exists(ctx, pattern).Result()
 	if err != nil {
 		return err
 	}
-
 	if n == 0 {
 		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
 			return err
 		}
 		return nil
 	}
-
-	return fmt.Errorf("provided URL already exists: %s", URL)
-
-	// return nil
+	return errors.URLExistsError{Message: fmt.Sprintf("you've already created tinylink for: %s", URL)}
 	// O(n)
 	// pattern := fmt.Sprintf("client:%s:tinylink:*", clientID)
 	// var cursor uint64
