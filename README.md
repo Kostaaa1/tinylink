@@ -15,7 +15,7 @@ URL shortener
 
 ## Goals
 
-- DDD architecture - https://github.com/sklinkert/go-ddd
+- DDD architecture 
 - gorilla/sessions - use cookie store to store TTL sessions
 - Use Redis/SQLite/SQLx
 - Implement Rate limiter 

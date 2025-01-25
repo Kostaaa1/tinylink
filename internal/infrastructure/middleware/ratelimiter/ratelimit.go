@@ -71,11 +71,10 @@ func (rl *ratelimit) Middleware(next http.Handler) http.Handler {
 				}
 			}
 			clients[ip].lastSeen = time.Now()
-			clientLimiter := clients[ip].limiter
 
 			mu.Unlock()
 
-			if !clientLimiter.Allow() {
+			if !clients[ip].limiter.Allow() {
 				errors.RateLimitExceededResponse(w, r, rl.rps)
 				return
 			}
