@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -28,13 +27,6 @@ type Tinylink struct {
 	OriginalURL string    `json:"original_url"`
 	QR          QR        `json:"qr"`
 	CreatedAt   time.Time `json:"created_at"`
-}
-
-type Alias string
-
-func (a *Alias) IsValid(v *validator.Validator) bool {
-	v.Check(len(*a) >= 5, "alias", "must be at least 5 characters long")
-	return v.Valid()
 }
 
 // add validation logic / maybe some helper function

@@ -33,22 +33,24 @@ func getEncryptionKey() []byte {
 	return securecookie.GenerateRandomKey(16)
 }
 
-// Middleware for persistence of sessions
+// Middleware for persistence of
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := string(tinylinkSessionKey)
-		session, _ := cookiestore.Get(r, key)
+		session, err := cookiestore.Get(r, key)
+		if err != nil {
+			fmt.Println("error while getting the session: ", err)
+		}
 
 		// Do i need to add check if session is valid?
 		if len(session.Values) == 0 {
 			// maybe store other client data? IP, UserAgent, Referer...
-			sessionKey := securecookie.GenerateRandomKey(8)
 			fmt.Println("no session in cookie store. Creating and saving... Key: ")
+			sessionKey := securecookie.GenerateRandomKey(8)
 			session.Values["session_id"] = string(sessionKey)
-			session.Options.MaxAge = 24 * 3600 // 24 hours
+			session.Options.MaxAge = 24 * 3600 // 1 day
 			session.Options.Secure = true      // https only
 			session.Options.HttpOnly = true    // prevent javascript access
-
 			if err := session.Save(r, w); err != nil {
 				fmt.Println("Failed to save the session?", err)
 				myerr.ServerErrorResponse(w, r, err)

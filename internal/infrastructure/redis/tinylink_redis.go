@@ -91,77 +91,62 @@ func (r *RedisRepository) List(ctx context.Context, qp entities.QueryParams) ([]
 
 func (r *RedisRepository) Delete(ctx context.Context, qp entities.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.SessionID, qp.Alias)
-	if err := r.client.Del(ctx, pattern).Err(); err != nil {
-		return err
-	}
-	uniqueKey := fmt.Sprintf("unique:%s", qp.Alias)
-	if err := r.client.Del(ctx, uniqueKey).Err(); err != nil {
-		return err
-	}
-	return nil
-}
 
-func (r *RedisRepository) CheckAlias(ctx context.Context, alias string) error {
-	n, err := r.client.Exists(ctx, fmt.Sprintf("unique:%s", alias)).Result()
+	ok, err := r.Exists(ctx, pattern)
 	if err != nil {
 		return err
 	}
-	if n > 0 {
-		return errors.AliasUsedError{Message: fmt.Sprintf("this alias is already being used: %s", alias)}
+
+	if ok {
+		if err := r.client.Del(ctx, pattern).Err(); err != nil {
+			return err
+		}
+		if err := r.client.Del(ctx, fmt.Sprintf("unique:%s", qp.Alias)).Err(); err != nil {
+			return err
+		}
 	}
-	if err := r.client.Set(ctx, fmt.Sprintf("unique:%s", alias), nil, 0).Err(); err != nil {
-		return err
-	}
+
 	return nil
 }
 
-func (r *RedisRepository) CheckOriginalURL(ctx context.Context, clientID, URL string) error {
-	// O(1)
-	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
-	n, err := r.client.Exists(ctx, pattern).Result()
+func (r *RedisRepository) Exists(ctx context.Context, id string) (bool, error) {
+	n, err := r.client.Exists(ctx, id).Result()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+func (r *RedisRepository) SetAlias(ctx context.Context, alias string) error {
+	pattern := fmt.Sprintf("unique:%s", alias)
+	ok, err := r.Exists(ctx, pattern)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	if !ok {
 		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
 			return err
 		}
 		return nil
 	}
-	return errors.URLExistsError{Message: fmt.Sprintf("you've already created tinylink for: %s", URL)}
-	// O(n)
-	// pattern := fmt.Sprintf("client:%s:tinylink:*", clientID)
-	// var cursor uint64
-	// for {
-	// 	keys, newCursor, err := r.client.Scan(ctx, cursor, pattern, 100).Result()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	if len(keys) == 0 {
-	// 		return nil
-	// 	}
-	// 	pipe := r.client.Pipeline()
-	// 	cmds := make([]*redis.StringCmd, len(keys))
-	// 	for i, key := range keys {
-	// 		cmds[i] = pipe.HGet(ctx, key, "original_url")
-	// 	}
-	// 	_, err = pipe.Exec(ctx)
-	// 	if err != nil {
-	// 		return fmt.Errorf("failed to execute pipeline: %w", err)
-	// 	}
-	// 	for _, cmd := range cmds {
-	// 		u, err := cmd.Result()
-	// 		if err != nil {
-	// 			return fmt.Errorf("failed to get cmd.Result()")
-	// 		}
-	// 		if URL == u {
-	// 			return fmt.Errorf("you've already created tinylink for this URL: %s", URL)
-	// 		}
-	// 	}
-	// 	cursor = newCursor
-	// 	if cursor == 0 {
-	// 		break
-	// 	}
-	// }
-	// return nil
+
+	return errors.ErrAliasExists
+}
+
+func (r *RedisRepository) SetOriginalURL(ctx context.Context, clientID, URL string) error {
+	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
+
+	ok, err := r.Exists(ctx, pattern)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	return errors.ErrURLExists
 }

@@ -11,8 +11,7 @@ type TinylinkRepository interface {
 	Delete(ctx context.Context, qp entities.QueryParams) error
 	Save(ctx context.Context, tl *entities.Tinylink, qp entities.QueryParams) error
 	Get(ctx context.Context, qp entities.QueryParams) (*entities.Tinylink, error)
-	////////////////
-	CheckAlias(ctx context.Context, alias string) error
-	CheckOriginalURL(ctx context.Context, clientID, URL string) error
-	// Ping(ctx context.Context) error
+	Exists(ctx context.Context, id string) (bool, error)
+	SetAlias(ctx context.Context, alias string) error
+	SetOriginalURL(ctx context.Context, clientID, URL string) error
 }

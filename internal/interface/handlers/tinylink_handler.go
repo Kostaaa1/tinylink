@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/application/interfaces"
 	errResp "github.com/Kostaaa1/tinylink/internal/errors"
@@ -28,7 +29,9 @@ func NewTinylinkHandler(r *mux.Router, tinylinkService interfaces.TinylinkServic
 }
 
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
 	sessionID, err := session.GetID(r)
 	if err != nil {
 		errResp.BadRequestResponse(w, r, err)
@@ -65,18 +68,13 @@ func (h *TinylinkHandler) Save(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
 
 	tl, err := h.service.Save(ctx, sessionID, req.URL, req.Alias)
 	if err != nil {
-		switch err := err.(type) {
-		case errResp.URLExistsError:
-			errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
-		case errResp.AliasUsedError:
-			errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
-		default:
-			errResp.ServerErrorResponse(w, r, err)
-		}
+		status, msg := errResp.MapErrorToStatus(err)
+		errResp.ErrorResponse(w, r, status, msg)
 		return
 	}
 
@@ -93,7 +91,9 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tinylinkAlias := mux.Vars(r)["alias"]
-	ctx := context.Background()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
 
 	tl, err := h.service.Get(ctx, sessionID, tinylinkAlias)
 	if err != nil {
@@ -113,8 +113,11 @@ func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	tinylink := mux.Vars(r)["alias"]
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
 	if err := h.service.Delete(ctx, sessionID, tinylink); err != nil {
+		errResp.ServerErrorResponse(w, r, err)
 		return
 	}
 
