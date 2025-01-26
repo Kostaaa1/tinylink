@@ -34,7 +34,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
 	handlers.NewTinylinkHandler(r, services.NewTinylinkService(repos.Tinylink))
 
 	srv := &http.Server{

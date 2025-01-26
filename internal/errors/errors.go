@@ -1,27 +1,18 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/Kostaaa1/tinylink/internal/interface/utils/jsonutil"
 )
 
-type URLExistsError struct {
-	Message string
-}
-
-func (e URLExistsError) Error() string {
-	return e.Message
-}
-
-type AliasUsedError struct {
-	Message string
-}
-
-func (e AliasUsedError) Error() string {
-	return e.Message
-}
+var (
+	ErrTinylinkAlreadyExists = fmt.Errorf("tinylink with this alias already exists.")
+	ErrAliasExists           = fmt.Errorf("this alias is not available. All aliasses must be unique.")
+	ErrURLExists             = fmt.Errorf("you've already created a tinylink with this URL.")
+)
 
 func LogError(r *http.Request, err error) {
 	// a.logger.Error(err.Error())
@@ -42,6 +33,7 @@ func ErrorResponse(w http.ResponseWriter, r *http.Request, status int, msg inter
 
 func ServerErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
 	// a.logError(r, err)
+	fmt.Println("Error: ", err)
 	ErrorResponse(w, r, http.StatusInternalServerError, "the server encountered a problem and could not process your request")
 }
 
@@ -59,4 +51,15 @@ func NotFoundResponse(w http.ResponseWriter, r *http.Request) {
 
 func MethodNotAllowedResponse(w http.ResponseWriter, r *http.Request) {
 	ErrorResponse(w, r, http.StatusMethodNotAllowed, "method not allowed for this resource")
+}
+
+func MapErrorToStatus(err error) (int, string) {
+	switch {
+	case errors.Is(err, ErrTinylinkAlreadyExists):
+		return http.StatusConflict, "The alias is already in use."
+	case errors.Is(err, ErrURLExists):
+		return http.StatusConflict, "The URL is already shortened."
+	default:
+		return http.StatusInternalServerError, "Internal server error."
+	}
 }
