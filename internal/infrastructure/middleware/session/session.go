@@ -70,6 +70,7 @@ const tinylinkSessionKey contextKey = "tinylink_session"
 
 func GetID(r *http.Request) (string, error) {
 	session, ok := r.Context().Value(tinylinkSessionKey).(*sessions.Session)
+	fmt.Println(session.Options)
 	if !ok {
 		return "", errors.New("no session found in context")
 	}
