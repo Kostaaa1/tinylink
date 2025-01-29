@@ -39,6 +39,7 @@ func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
 		Tinylink:    fmt.Sprintf("%s/%s", domain, alias),
 		Alias:       alias,
 		OriginalURL: originalURL,
+		CreatedAt:   time.Now(),
 		QR: QR{
 			Data:     pngBytes,
 			Width:    "127",
@@ -46,7 +47,6 @@ func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
 			Size:     fmt.Sprintf("%d bytes", len(pngBytes)),
 			MimeType: http.DetectContentType(pngBytes),
 		},
-		CreatedAt: time.Now(),
 	}, nil
 }
 
