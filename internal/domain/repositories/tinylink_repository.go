@@ -13,5 +13,5 @@ type TinylinkRepository interface {
 	Get(ctx context.Context, qp entities.QueryParams) (*entities.Tinylink, error)
 	Exists(ctx context.Context, id string) (bool, error)
 	SetAlias(ctx context.Context, alias string) error
-	SetOriginalURL(ctx context.Context, clientID, URL string) error
+	// SetOriginalURL(ctx context.Context, clientID, URL string) error
 }

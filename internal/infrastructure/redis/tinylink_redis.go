@@ -18,7 +18,17 @@ func NewTinylinkRepository(client *redis.Client) *RedisRepository {
 }
 
 func (r *RedisRepository) Save(ctx context.Context, tl *entities.Tinylink, qp entities.QueryParams) error {
-	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.SessionID, tl.Alias)
+	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, tl.Alias)
+	urlKey := fmt.Sprintf("client:%s:%s:original_url:%s", qp.SessionID, tl.Alias, tl.OriginalURL)
+
+	ok, err := r.Exists(ctx, urlKey)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.ErrURLExists
+	}
+
 	if _, err := r.client.Pipelined(ctx, func(rdb redis.Pipeliner) error {
 		rdb.HSet(ctx, pattern, "host", tl.Tinylink)
 		rdb.HSet(ctx, pattern, "alias", tl.Alias)
@@ -32,11 +42,16 @@ func (r *RedisRepository) Save(ctx context.Context, tl *entities.Tinylink, qp en
 	}); err != nil {
 		return err
 	}
+
+	if err := r.client.Set(ctx, urlKey, nil, 0).Err(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (r *RedisRepository) Get(ctx context.Context, qp entities.QueryParams) (*entities.Tinylink, error) {
-	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.SessionID, qp.Alias)
+	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, qp.Alias)
 	v, err := r.client.HGetAll(ctx, pattern).Result()
 	if err != nil {
 		return nil, err
@@ -45,7 +60,7 @@ func (r *RedisRepository) Get(ctx context.Context, qp entities.QueryParams) (*en
 }
 
 func (r *RedisRepository) List(ctx context.Context, qp entities.QueryParams) ([]*entities.Tinylink, error) {
-	pattern := fmt.Sprintf("client:%s:tinylink:*", qp.SessionID)
+	pattern := fmt.Sprintf("client:%s:*", qp.SessionID)
 
 	var cursor uint64
 	links := []*entities.Tinylink{}
@@ -90,7 +105,7 @@ func (r *RedisRepository) List(ctx context.Context, qp entities.QueryParams) ([]
 }
 
 func (r *RedisRepository) Delete(ctx context.Context, qp entities.QueryParams) error {
-	pattern := fmt.Sprintf("client:%s:tinylink:%s", qp.SessionID, qp.Alias)
+	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, qp.Alias)
 
 	ok, err := r.Exists(ctx, pattern)
 	if err != nil {
@@ -101,7 +116,7 @@ func (r *RedisRepository) Delete(ctx context.Context, qp entities.QueryParams) e
 		if err := r.client.Del(ctx, pattern).Err(); err != nil {
 			return err
 		}
-		if err := r.client.Del(ctx, fmt.Sprintf("unique:%s", qp.Alias)).Err(); err != nil {
+		if err := r.client.Del(ctx, fmt.Sprintf("global:%s", qp.Alias)).Err(); err != nil {
 			return err
 		}
 	}
@@ -118,11 +133,13 @@ func (r *RedisRepository) Exists(ctx context.Context, id string) (bool, error) {
 }
 
 func (r *RedisRepository) SetAlias(ctx context.Context, alias string) error {
-	pattern := fmt.Sprintf("unique:%s", alias)
+	pattern := fmt.Sprintf("global:%s", alias)
+
 	ok, err := r.Exists(ctx, pattern)
 	if err != nil {
 		return err
 	}
+
 	if !ok {
 		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
 			return err
@@ -133,20 +150,10 @@ func (r *RedisRepository) SetAlias(ctx context.Context, alias string) error {
 	return errors.ErrAliasExists
 }
 
-func (r *RedisRepository) SetOriginalURL(ctx context.Context, clientID, URL string) error {
-	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
-
-	ok, err := r.Exists(ctx, pattern)
-	if err != nil {
-		return err
-	}
-
-	if !ok {
-		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return errors.ErrURLExists
-}
+// func (r *RedisRepository) SetOriginalURL(ctx context.Context, clientID, URL string) error {
+// 	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
+// 	if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
+// 		return err
+// 	}
+// 	return errors.ErrURLExists
+// }

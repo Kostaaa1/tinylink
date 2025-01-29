@@ -26,10 +26,6 @@ func (s *TinylinkService) List(ctx context.Context, sessionID string) ([]*entiti
 }
 
 func (s *TinylinkService) Save(ctx context.Context, sessionID, URL, alias string) (*entities.Tinylink, error) {
-	if err := s.tinylinkRepo.SetOriginalURL(ctx, sessionID, URL); err != nil {
-		return nil, err
-	}
-
 	if alias == "" {
 		s := sessionID + URL
 		alias = fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:8]
