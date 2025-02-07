@@ -19,13 +19,13 @@ func NewTinylinkRepository(client *redis.Client) *RedisRepository {
 
 func (r *RedisRepository) Save(ctx context.Context, tl *entities.Tinylink, qp entities.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, tl.Alias)
-	urlKey := fmt.Sprintf("client:%s:%s:original_url:%s", qp.SessionID, tl.Alias, tl.OriginalURL)
+	urlKey := fmt.Sprintf("client:%s:original_url:%s", qp.SessionID, tl.OriginalURL)
 
 	ok, err := r.Exists(ctx, urlKey)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if ok {
 		return errors.ErrURLExists
 	}
 
@@ -76,10 +76,13 @@ func (r *RedisRepository) List(ctx context.Context, qp entities.QueryParams) ([]
 		}
 
 		pipe := r.client.Pipeline()
-		cmds := make([]*redis.MapStringStringCmd, len(keys))
+		var cmds = []*redis.MapStringStringCmd{}
 
-		for i, key := range keys {
-			cmds[i] = pipe.HGetAll(ctx, key)
+		for _, key := range keys {
+			keyType := r.client.Type(ctx, key).Val()
+			if keyType == "hash" {
+				cmds = append(cmds, pipe.HGetAll(ctx, key))
+			}
 		}
 
 		_, err = pipe.Exec(ctx)
@@ -134,7 +137,6 @@ func (r *RedisRepository) Exists(ctx context.Context, id string) (bool, error) {
 
 func (r *RedisRepository) SetAlias(ctx context.Context, alias string) error {
 	pattern := fmt.Sprintf("global:%s", alias)
-
 	ok, err := r.Exists(ctx, pattern)
 	if err != nil {
 		return err

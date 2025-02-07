@@ -29,10 +29,8 @@ func NewRepositories(cfg *config.Config) (*Repositories, error) {
 		if err := client.Ping(pingctx).Err(); err != nil {
 			return nil, fmt.Errorf("storage ping failed for %s: %v", cfg.StorageType, err)
 		}
-
-		fmt.Printf("Connected to redis server on port: %s\n", cfg.Redis.Port)
 		repos.Tinylink = redisdb.NewTinylinkRepository(client)
-
+	case "sqlite":
 	default:
 		return nil, fmt.Errorf("not supported storage type: %s", cfg.StorageType)
 	}

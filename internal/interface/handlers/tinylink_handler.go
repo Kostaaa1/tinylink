@@ -51,6 +51,7 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *TinylinkHandler) Save(w http.ResponseWriter, r *http.Request) {
 	var req request.CreateTinylinkRequest
+
 	if err := jsonutil.ReadJSON(r, &req); err != nil {
 		errResp.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
 		return

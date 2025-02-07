@@ -25,8 +25,8 @@ type Tinylink struct {
 	Tinylink    string    `json:"tinylink"`
 	Alias       string    `json:"alias"`
 	OriginalURL string    `json:"original_url"`
-	QR          QR        `json:"qr"`
 	CreatedAt   time.Time `json:"created_at"`
+	QR          QR        `json:"qr"`
 }
 
 // add validation logic / maybe some helper function
