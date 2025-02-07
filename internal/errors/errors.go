@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	ErrTinylinkAlreadyExists = fmt.Errorf("tinylink with this alias already exists.")
-	ErrAliasExists           = fmt.Errorf("this alias is not available. All aliasses must be unique.")
-	ErrURLExists             = fmt.Errorf("you've already created a tinylink with this URL.")
+	ErrAliasExists = errors.New("this alias is not available. All aliasses must be unique")
+	ErrURLExists   = errors.New("you've already created a tinylink with this URL")
 )
 
 func LogError(r *http.Request, err error) {
@@ -55,11 +54,11 @@ func MethodNotAllowedResponse(w http.ResponseWriter, r *http.Request) {
 
 func MapErrorToStatus(err error) (int, string) {
 	switch {
-	case errors.Is(err, ErrTinylinkAlreadyExists):
-		return http.StatusConflict, "The alias is already in use."
 	case errors.Is(err, ErrURLExists):
-		return http.StatusConflict, "The URL is already shortened."
+		return http.StatusConflict, "Tinylink already exists for this URL"
+	case errors.Is(err, ErrAliasExists):
+		return http.StatusConflict, "Alias not available"
 	default:
-		return http.StatusInternalServerError, "Internal server error."
+		return http.StatusInternalServerError, "Internal server error"
 	}
 }
