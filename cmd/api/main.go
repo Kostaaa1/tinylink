@@ -1,50 +1,38 @@
 package main
 
 import (
-	"log"
-	"log/slog"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/application/services"
-	"github.com/Kostaaa1/tinylink/internal/errors"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure"
-	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware"
-	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/ratelimiter"
-	"github.com/Kostaaa1/tinylink/internal/infrastructure/middleware/session"
 	"github.com/Kostaaa1/tinylink/internal/interface/handlers"
+	"github.com/Kostaaa1/tinylink/internal/jsonlog"
 	"github.com/Kostaaa1/tinylink/pkg/config"
-	"github.com/gorilla/mux"
 )
+
+type app struct {
+	cfg *config.Config
+	log *jsonlog.Logger
+}
 
 func main() {
 	cfg := config.New()
+	log := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	r := mux.NewRouter()
-	r.MethodNotAllowedHandler = http.HandlerFunc(errors.MethodNotAllowedResponse)
-	r.NotFoundHandler = http.HandlerFunc(errors.NotFoundResponse)
-
-	limit := ratelimiter.New(cfg.Limiter)
-	r.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
+	a := app{
+		cfg: cfg,
+		log: log,
+	}
+	router := a.setupRouter()
 
 	repos, err := infrastructure.NewRepositories(cfg)
 	if err != nil {
-		panic(err)
+		log.PrintFatal(err, nil)
 	}
-	handlers.NewTinylinkHandler(r, services.NewTinylinkService(repos.Tinylink))
+	tlService := services.NewTinylinkService(repos.Tinylink)
+	handlers.NewTinylinkHandler(router, tlService)
 
-	srv := &http.Server{
-		Addr:           ":" + cfg.Port,
-		Handler:        r,
-		IdleTimeout:    1 * time.Minute,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   30 * time.Second,
-		MaxHeaderBytes: 2 * 1024 * 1024,
+	if err := a.serve(router); err != nil {
+		a.log.PrintFatal(err, nil)
 	}
-
-	logger.Info("Server running on", "port", srv.Addr)
-	log.Fatal(srv.ListenAndServe())
 }
