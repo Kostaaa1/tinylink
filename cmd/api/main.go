@@ -1,13 +1,15 @@
 package main
 
 import (
+	"flag"
 	"os"
 
-	"github.com/Kostaaa1/tinylink/internal/application/services"
-	"github.com/Kostaaa1/tinylink/internal/infrastructure"
-	"github.com/Kostaaa1/tinylink/internal/interface/handlers"
-	"github.com/Kostaaa1/tinylink/internal/jsonlog"
+	"github.com/Kostaaa1/tinylink/api/handlers"
+	redisdb "github.com/Kostaaa1/tinylink/internal/repositories/redis"
+	"github.com/Kostaaa1/tinylink/internal/services"
 	"github.com/Kostaaa1/tinylink/pkg/config"
+	"github.com/Kostaaa1/tinylink/pkg/jsonlog"
+	"github.com/joho/godotenv"
 )
 
 type app struct {
@@ -15,22 +17,39 @@ type app struct {
 	log *jsonlog.Logger
 }
 
+func init() {
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
+}
+
 func main() {
-	cfg := config.New()
+	var cfg config.Config
+
+	flag.StringVar(&cfg.Port, "port", "3000", "Server address port")
+	flag.StringVar(&cfg.Env, "env", "development", "Environment (development|staging|production)")
+	flag.StringVar(&cfg.StorageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
+	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "Rate limiter requests-per-second")
+	flag.IntVar(&cfg.Limiter.Burst, "limiter-burst", 4, "Rate limiter maximum burst")
+	flag.BoolVar(&cfg.Limiter.Enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.Parse()
+
 	log := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
 	a := app{
-		cfg: cfg,
+		cfg: &cfg,
 		log: log,
 	}
+
+	store := redisdb.NewRedisStore(&cfg)
 	router := a.setupRouter()
 
-	repos, err := infrastructure.NewRepositories(cfg)
-	if err != nil {
-		log.PrintFatal(err, nil)
-	}
-	tlService := services.NewTinylinkService(repos.Tinylink)
-	handlers.NewTinylinkHandler(router, tlService)
+	tinylinkService := services.NewTinylinkService(store.Tinylink)
+	handlers.NewTinylinkHandler(router, tinylinkService)
+
+	userService := services.NewUserService(store.User)
+	handlers.NewUserHandler(router, userService)
 
 	if err := a.serve(router); err != nil {
 		a.log.PrintFatal(err, nil)

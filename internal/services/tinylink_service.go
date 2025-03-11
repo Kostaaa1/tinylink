@@ -6,14 +6,21 @@ import (
 	"fmt"
 
 	"github.com/Kostaaa1/tinylink/internal/domain/entities"
-	"github.com/Kostaaa1/tinylink/internal/domain/repositories"
+	service "github.com/Kostaaa1/tinylink/internal/store"
 )
 
+// type TinylinkServiceInterface interface {
+// 	List(ctx context.Context, sessionID string) ([]*entities.Tinylink, error)
+// 	Delete(ctx context.Context, sessionID, alias string) error
+// 	Save(ctx context.Context, sessionID, url, alias string) (*entities.Tinylink, error)
+// 	Get(ctx context.Context, sessionID, alias string) (*entities.Tinylink, error)
+// }
+
 type TinylinkService struct {
-	tinylinkRepo repositories.TinylinkRepository
+	tinylinkRepo service.TinylinkRepository
 }
 
-func NewTinylinkService(tinylinkRepo repositories.TinylinkRepository) *TinylinkService {
+func NewTinylinkService(tinylinkRepo service.TinylinkRepository) *TinylinkService {
 	return &TinylinkService{tinylinkRepo: tinylinkRepo}
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"errors"
 
-	myerr "github.com/Kostaaa1/tinylink/internal/errors"
+	myerr "github.com/Kostaaa1/tinylink/pkg/errors"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 )

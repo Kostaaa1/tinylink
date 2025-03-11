@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/errors"
 	"github.com/Kostaaa1/tinylink/pkg/config"
+	"github.com/Kostaaa1/tinylink/pkg/errors"
 	"golang.org/x/time/rate"
 )
 
