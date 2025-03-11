@@ -4,23 +4,38 @@ import (
 	"flag"
 	"os"
 
-	"github.com/Kostaaa1/tinylink/api/handlers"
 	redisdb "github.com/Kostaaa1/tinylink/internal/repositories/redis"
 	"github.com/Kostaaa1/tinylink/internal/services"
+	"github.com/Kostaaa1/tinylink/internal/store"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/Kostaaa1/tinylink/pkg/jsonlog"
+	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
 
-type app struct {
-	cfg *config.Config
-	log *jsonlog.Logger
+type application struct {
+	cfg             *config.Config
+	log             *jsonlog.Logger
+	tinylinkService *services.TinylinkService
+	userService     *services.UserService
+	router          *mux.Router
 }
 
 func init() {
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
+	}
+}
+
+func NewStore(cfg *config.Config) *store.Store {
+	switch cfg.StorageType {
+	case "redis":
+		return redisdb.NewRedisStore(cfg)
+	// case "sqlite":
+	// return redisdb.NewRedisStore(cfg)
+	default:
+		return redisdb.NewRedisStore(cfg)
 	}
 }
 
@@ -37,21 +52,19 @@ func main() {
 
 	log := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
-	a := app{
-		cfg: &cfg,
-		log: log,
+	store := NewStore(&cfg)
+
+	app := application{
+		cfg:             &cfg,
+		log:             log,
+		tinylinkService: services.NewTinylinkService(store.Tinylink),
+		userService:     services.NewUserService(store.User),
+		router:          mux.NewRouter(),
 	}
 
-	store := redisdb.NewRedisStore(&cfg)
-	router := a.setupRouter()
+	app.setupRouter()
 
-	tinylinkService := services.NewTinylinkService(store.Tinylink)
-	handlers.NewTinylinkHandler(router, tinylinkService)
-
-	userService := services.NewUserService(store.User)
-	handlers.NewUserHandler(router, userService)
-
-	if err := a.serve(router); err != nil {
-		a.log.PrintFatal(err, nil)
+	if err := app.serve(); err != nil {
+		app.log.PrintFatal(err, nil)
 	}
 }
