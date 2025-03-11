@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/api/handlers"
 	"github.com/Kostaaa1/tinylink/api/utils/jsonutil"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/internal/middleware/session"
 	myerr "github.com/Kostaaa1/tinylink/pkg/errors"
-	"github.com/gorilla/mux"
 )
 
 type envelope map[string]interface{}
 
-func (a *app) healthcheck(w http.ResponseWriter, r *http.Request) {
+func (app *application) healthcheck(w http.ResponseWriter, r *http.Request) {
 	env := envelope{
 		"status": "available",
 		"system_info": map[string]string{
@@ -34,28 +34,31 @@ func (a *app) healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *app) setupRouter() *mux.Router {
-	router := mux.NewRouter()
+func (app *application) setupRouter() {
+	app.router.MethodNotAllowedHandler = http.HandlerFunc(myerr.MethodNotAllowedResponse)
+	app.router.NotFoundHandler = http.HandlerFunc(myerr.NotFoundResponse)
 
-	router.MethodNotAllowedHandler = http.HandlerFunc(myerr.MethodNotAllowedResponse)
-	router.NotFoundHandler = http.HandlerFunc(myerr.NotFoundResponse)
+	limit := ratelimiter.New(app.cfg.Limiter)
+	app.router.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
 
-	limit := ratelimiter.New(a.cfg.Limiter)
-	router.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
+	app.router.HandleFunc("/health", app.healthcheck)
 
-	router.HandleFunc("/health", a.healthcheck)
-
-	return router
+	tlHandler := handlers.NewTinylinkHandler(app.tinylinkService)
+	app.router.HandleFunc("/getAll", tlHandler.List).Methods("GET")
+	app.router.HandleFunc("/create", tlHandler.Save).Methods("POST")
+	app.router.HandleFunc("/{alias}", tlHandler.Redirect).Methods("GET")
+	app.router.HandleFunc("/{alias}", tlHandler.Delete).Methods("DELETE")
+	// userHandler := handlers.NewTinylinkHandler(a.tinylinkService)
 }
 
-func (app *app) serve(r *mux.Router) error {
+func (app *application) serve() error {
 	if !strings.HasPrefix(app.cfg.Port, ":") {
 		app.cfg.Port = ":" + app.cfg.Port
 	}
 
 	srv := &http.Server{
 		Addr:         app.cfg.Port,
-		Handler:      r,
+		Handler:      app.router,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,

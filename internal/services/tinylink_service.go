@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Kostaaa1/tinylink/internal/domain/entities"
-	service "github.com/Kostaaa1/tinylink/internal/store"
+	"github.com/Kostaaa1/tinylink/internal/store"
 )
 
 // type TinylinkServiceInterface interface {
@@ -17,10 +17,10 @@ import (
 // }
 
 type TinylinkService struct {
-	tinylinkRepo service.TinylinkRepository
+	tinylinkRepo store.TinylinkRepository
 }
 
-func NewTinylinkService(tinylinkRepo service.TinylinkRepository) *TinylinkService {
+func NewTinylinkService(tinylinkRepo store.TinylinkRepository) *TinylinkService {
 	return &TinylinkService{tinylinkRepo: tinylinkRepo}
 }
 
