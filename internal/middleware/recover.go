@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Kostaaa1/tinylink/internal/errors"
+	"github.com/Kostaaa1/tinylink/pkg/errors"
 )
 
 // Recover panic middleware will only occur if panic happens in the same goroutine that executes recoverPanic mdidleware. So if panic occurs in different goroutines (some background processing etc.), those panics will cause app to exit and bring down the server.

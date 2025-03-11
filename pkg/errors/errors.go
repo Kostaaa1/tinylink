@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Kostaaa1/tinylink/internal/interface/utils/jsonutil"
+	"github.com/Kostaaa1/tinylink/api/utils/jsonutil"
 )
 
 var (
@@ -18,7 +18,7 @@ func LogError(r *http.Request, err error) {
 }
 
 func RateLimitExceededResponse(w http.ResponseWriter, r *http.Request, rps float64) {
-	w.Header().Set("Retry-After", fmt.Sprintf("%d"))
+	// w.Header().Set("Retry-After", fmt.Sprintf("%d"))
 	ErrorResponse(w, r, http.StatusTooManyRequests, "Rate limit exceeded, too many requests!")
 }
 

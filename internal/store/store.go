@@ -1,10 +1,15 @@
-package repositories
+package store
 
 import (
 	"context"
 
 	"github.com/Kostaaa1/tinylink/internal/domain/entities"
 )
+
+type Store struct {
+	User     UserRepository
+	Tinylink TinylinkRepository
+}
 
 type TinylinkRepository interface {
 	List(ctx context.Context, qp entities.QueryParams) ([]*entities.Tinylink, error)
@@ -13,5 +18,9 @@ type TinylinkRepository interface {
 	Get(ctx context.Context, qp entities.QueryParams) (*entities.Tinylink, error)
 	Exists(ctx context.Context, id string) (bool, error)
 	SetAlias(ctx context.Context, alias string) error
-	// SetOriginalURL(ctx context.Context, clientID, URL string) error
+}
+
+type UserRepository interface {
+	Save(ctx context.Context)
+	GetByID(ctx context.Context)
 }
