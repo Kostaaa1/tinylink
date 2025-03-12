@@ -1,1 +1,0 @@
-ALTER TABLE users ADD COLUMN created_at REAL DEFAULT (julianday('now'));
