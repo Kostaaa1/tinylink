@@ -14,7 +14,8 @@ type QueryParams struct {
 }
 
 type QR struct {
-	Data     []byte `json:"data"`
+	// Data     []byte `json:"data"`
+	Base64   []byte `json:"base64"`
 	Width    string `json:"width"`
 	Height   string `json:"height"`
 	Size     string `json:"size"`
@@ -29,19 +30,24 @@ type Tinylink struct {
 	QR          QR        `json:"qr"`
 }
 
-// add validation logic / maybe some helper function
+// add validation logic /maybe some helper function
 func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
 	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", domain, alias), qrcode.Medium, 127)
 	if err != nil {
+		fmt.Println("error while generating QR code", err)
 		return nil, err
 	}
+
+	base64Bytes := []byte("data:image/png;base64,")
+	base64Bytes = append(base64Bytes, pngBytes...)
+
 	return &Tinylink{
 		Tinylink:    fmt.Sprintf("%s/%s", domain, alias),
 		Alias:       alias,
 		OriginalURL: originalURL,
 		CreatedAt:   time.Now(),
 		QR: QR{
-			Data:     pngBytes,
+			Base64:   base64Bytes,
 			Width:    "127",
 			Height:   "127",
 			Size:     fmt.Sprintf("%d bytes", len(pngBytes)),
@@ -56,7 +62,7 @@ func MapToTinylink(data map[string]string) *Tinylink {
 		Alias:       data["alias"],
 		OriginalURL: data["original_url"],
 		QR: QR{
-			Data:     []byte(data["qr:data"]),
+			Base64:   []byte(data["qr:data"]),
 			Width:    data["qr:width"],
 			Height:   data["qr:height"],
 			Size:     data["qr:size"],

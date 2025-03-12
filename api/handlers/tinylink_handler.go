@@ -24,15 +24,6 @@ func NewTinylinkHandler(tinylinkService *services.TinylinkService) *TinylinkHand
 	}
 }
 
-// 	h := TinylinkHandler{
-// 		service: tinylinkService,
-// 	}
-// 	r.HandleFunc("/getAll", h.List).Methods("GET")
-// 	r.HandleFunc("/create", h.Save).Methods("POST")
-// 	r.HandleFunc("/{alias}", h.Redirect).Methods("GET")
-// 	r.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
-// }
-
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()

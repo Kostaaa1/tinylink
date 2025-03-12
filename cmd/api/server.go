@@ -48,7 +48,11 @@ func (app *application) setupRouter() {
 	app.router.HandleFunc("/create", tlHandler.Save).Methods("POST")
 	app.router.HandleFunc("/{alias}", tlHandler.Redirect).Methods("GET")
 	app.router.HandleFunc("/{alias}", tlHandler.Delete).Methods("DELETE")
-	// userHandler := handlers.NewTinylinkHandler(a.tinylinkService)
+
+	// userHandler := handlers.NewUserHandler(app.userService)
+	// userRoutes := app.router.PathPrefix("/users").Subrouter()
+	// userRoutes.HandleFunc("/{id}", userHandler.GetByID).Methods("GET")
+	// userRoutes.HandleFunc("/create", userHandler.Create).Methods("POST")
 }
 
 func (app *application) serve() error {
@@ -57,7 +61,7 @@ func (app *application) serve() error {
 	}
 
 	srv := &http.Server{
-		Addr:         app.cfg.Port,
+		Addr:         "0.0.0.0" + app.cfg.Port,
 		Handler:      app.router,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,

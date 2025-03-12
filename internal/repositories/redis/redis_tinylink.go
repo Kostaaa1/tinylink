@@ -37,7 +37,7 @@ func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *entities.Tinylin
 		rdb.HSet(ctx, pattern, "host", tl.Tinylink)
 		rdb.HSet(ctx, pattern, "alias", tl.Alias)
 		rdb.HSet(ctx, pattern, "original_url", tl.OriginalURL)
-		rdb.HSet(ctx, pattern, "qr:data", tl.QR.Data)
+		rdb.HSet(ctx, pattern, "qr:base64", tl.QR.Base64)
 		rdb.HSet(ctx, pattern, "qr:width", tl.QR.Width)
 		rdb.HSet(ctx, pattern, "qr:height", tl.QR.Height)
 		rdb.HSet(ctx, pattern, "qr:size", tl.QR.Size)
