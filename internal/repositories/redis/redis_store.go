@@ -26,7 +26,7 @@ func NewRedisStore(cfg *config.Config) *store.Store {
 	}
 
 	return &store.Store{
-		Tinylink: NewRedisTinylinkRepository(client),
-		// User:     NewRedisUserRepository(client),
+		Tinylink: NewRedisTinylinkStore(client),
+		// User:     NewRedisUserStore(client),
 	}
 }

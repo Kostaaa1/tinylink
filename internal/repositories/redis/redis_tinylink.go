@@ -10,17 +10,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisTinylinkRepository struct {
+type RedisTinylinkStore struct {
 	client *redis.Client
 }
 
-func NewRedisTinylinkRepository(client *redis.Client) store.TinylinkRepository {
-	return &RedisTinylinkRepository{
+func NewRedisTinylinkStore(client *redis.Client) store.TinylinkStore {
+	return &RedisTinylinkStore{
 		client: client,
 	}
 }
 
-func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *data.Tinylink, qp data.QueryParams) error {
+func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink, qp data.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, tl.Alias)
 	urlKey := fmt.Sprintf("client:%s:original_url:%s", qp.SessionID, tl.OriginalURL)
 
@@ -53,7 +53,7 @@ func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *data.Tinylink, q
 	return nil
 }
 
-func (r *RedisTinylinkRepository) Get(ctx context.Context, qp data.QueryParams) (*data.Tinylink, error) {
+func (r *RedisTinylinkStore) Get(ctx context.Context, qp data.QueryParams) (*data.Tinylink, error) {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, qp.Alias)
 	v, err := r.client.HGetAll(ctx, pattern).Result()
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *RedisTinylinkRepository) Get(ctx context.Context, qp data.QueryParams) 
 	return data.MapToTinylink(v), nil
 }
 
-func (r *RedisTinylinkRepository) List(ctx context.Context, qp data.QueryParams) ([]*data.Tinylink, error) {
+func (r *RedisTinylinkStore) List(ctx context.Context, qp data.QueryParams) ([]*data.Tinylink, error) {
 	pattern := fmt.Sprintf("client:%s:*", qp.SessionID)
 
 	var cursor uint64
@@ -110,7 +110,7 @@ func (r *RedisTinylinkRepository) List(ctx context.Context, qp data.QueryParams)
 	return links, nil
 }
 
-func (r *RedisTinylinkRepository) Delete(ctx context.Context, qp data.QueryParams) error {
+func (r *RedisTinylinkStore) Delete(ctx context.Context, qp data.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, qp.Alias)
 
 	ok, err := r.Exists(ctx, pattern)
@@ -130,7 +130,7 @@ func (r *RedisTinylinkRepository) Delete(ctx context.Context, qp data.QueryParam
 	return nil
 }
 
-func (r *RedisTinylinkRepository) Exists(ctx context.Context, id string) (bool, error) {
+func (r *RedisTinylinkStore) Exists(ctx context.Context, id string) (bool, error) {
 	n, err := r.client.Exists(ctx, id).Result()
 	if err != nil {
 		return false, err
@@ -138,7 +138,7 @@ func (r *RedisTinylinkRepository) Exists(ctx context.Context, id string) (bool, 
 	return n > 0, nil
 }
 
-func (r *RedisTinylinkRepository) SetAlias(ctx context.Context, alias string) error {
+func (r *RedisTinylinkStore) SetAlias(ctx context.Context, alias string) error {
 	pattern := fmt.Sprintf("global:%s", alias)
 	ok, err := r.Exists(ctx, pattern)
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *RedisTinylinkRepository) SetAlias(ctx context.Context, alias string) er
 	return data.ErrAliasExists
 }
 
-// func (r *RedisTinylinkRepository) SetOriginalURL(ctx context.Context, clientID, URL string) error {
+// func (r *RedisTinylinkStore) SetOriginalURL(ctx context.Context, clientID, URL string) error {
 // 	pattern := fmt.Sprintf("client:%s:original_url:%s", clientID, URL)
 // 	if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
 // 		return err

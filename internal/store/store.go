@@ -7,11 +7,11 @@ import (
 )
 
 type Store struct {
-	User     UserRepository
-	Tinylink TinylinkRepository
+	User     UserStore
+	Tinylink TinylinkStore
 }
 
-type TinylinkRepository interface {
+type TinylinkStore interface {
 	List(ctx context.Context, qp data.QueryParams) ([]*data.Tinylink, error)
 	Delete(ctx context.Context, qp data.QueryParams) error
 	Save(ctx context.Context, tl *data.Tinylink, qp data.QueryParams) error
@@ -20,7 +20,7 @@ type TinylinkRepository interface {
 	SetAlias(ctx context.Context, alias string) error
 }
 
-type UserRepository interface {
+type UserStore interface {
 	Insert(user *data.User) error
 	GetByEmail(email string) (*data.User, error)
 	Update(user *data.User) error
