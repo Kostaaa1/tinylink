@@ -11,17 +11,17 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/store"
 )
 
-type SQLiteUserRepository struct {
+type SQLiteUserStore struct {
 	db *sql.DB
 }
 
-func NewSqliteUserRepository(db *sql.DB) store.UserRepository {
-	return &SQLiteUserRepository{
+func NewSqliteUserStore(db *sql.DB) store.UserStore {
+	return &SQLiteUserStore{
 		db: db,
 	}
 }
 
-func (s *SQLiteUserRepository) Insert(user *data.User) error {
+func (s *SQLiteUserStore) Insert(user *data.User) error {
 	query := `INSERT INTO users (name, email, password_hash, activated) 
         VALUES (?, ?, ?, ?)
         RETURNING id, created_at, version`
@@ -47,7 +47,7 @@ func (s *SQLiteUserRepository) Insert(user *data.User) error {
 	return nil
 }
 
-func (s *SQLiteUserRepository) GetByID(id int64) (*data.User, error) {
+func (s *SQLiteUserStore) GetByID(id int64) (*data.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version 
         FROM users 
         WHERE id = ?`
@@ -77,7 +77,7 @@ func (s *SQLiteUserRepository) GetByID(id int64) (*data.User, error) {
 	return &user, err
 }
 
-func (s *SQLiteUserRepository) Update(user *data.User) error {
+func (s *SQLiteUserStore) Update(user *data.User) error {
 	query := `
         UPDATE users 
         SET name = ?, email = ?, password_hash = ?, activated = ?, version = version + 1 
@@ -111,7 +111,7 @@ func (s *SQLiteUserRepository) Update(user *data.User) error {
 	return nil
 }
 
-func (s *SQLiteUserRepository) GetByEmail(email string) (*data.User, error) {
+func (s *SQLiteUserStore) GetByEmail(email string) (*data.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version 
         FROM users 
         WHERE email = ?`

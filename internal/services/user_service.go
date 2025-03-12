@@ -6,15 +6,15 @@ import (
 )
 
 type UserService struct {
-	UserRepo store.UserRepository
+	UserStore store.UserStore
 }
 
-func NewUserService(userRepo store.UserRepository) *UserService {
+func NewUserService(userStore store.UserStore) *UserService {
 	return &UserService{
-		UserRepo: userRepo,
+		UserStore: userStore,
 	}
 }
 
 func (s *UserService) Register(user *data.User) error {
-	return s.UserRepo.Insert(user)
+	return s.UserStore.Insert(user)
 }

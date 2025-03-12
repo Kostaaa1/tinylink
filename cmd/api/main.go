@@ -50,13 +50,14 @@ func main() {
 
 	// store := NewStore(&cfg)
 	// handle close connections to redis and sqlite
+
 	redisStore := redisdb.NewRedisStore(&cfg)
 	sqliteStore := sqlitedb.NewSqliteStore()
 
 	app := application{
 		cfg:             &cfg,
 		log:             log,
-		tinylinkService: services.NewTinylinkService(redisStore.Tinylink),
+		tinylinkService: services.NewTinylinkService(sqliteStore.Tinylink, redisStore.Tinylink),
 		userService:     services.NewUserService(sqliteStore.User),
 		router:          mux.NewRouter(),
 	}
