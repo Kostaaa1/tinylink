@@ -12,9 +12,10 @@ import (
 
 func NewRedisStore(cfg *config.Config) *store.Store {
 	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "lagaosiprovidnokopas",
-		DB:       0,
+		Addr:     cfg.Redis.Addr,
+		Password: cfg.Redis.Password,
+		DB:       cfg.Redis.DB,
+		PoolSize: cfg.Redis.PoolSize,
 	})
 
 	pingctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
