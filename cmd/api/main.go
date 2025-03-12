@@ -5,8 +5,8 @@ import (
 	"os"
 
 	redisdb "github.com/Kostaaa1/tinylink/internal/repositories/redis"
+	sqlitedb "github.com/Kostaaa1/tinylink/internal/repositories/sqlite"
 	"github.com/Kostaaa1/tinylink/internal/services"
-	"github.com/Kostaaa1/tinylink/internal/store"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/Kostaaa1/tinylink/pkg/jsonlog"
 	"github.com/gorilla/mux"
@@ -28,16 +28,16 @@ func init() {
 	}
 }
 
-func NewStore(cfg *config.Config) *store.Store {
-	switch cfg.StorageType {
-	case "redis":
-		return redisdb.NewRedisStore(cfg)
-	// case "sqlite":
-	// return redisdb.NewRedisStore(cfg)
-	default:
-		return redisdb.NewRedisStore(cfg)
-	}
-}
+// func NewStore(cfg *config.Config) *store.Store {
+// 	switch cfg.StorageType {
+// 	case "redis":
+// 		return redisdb.NewRedisStore(cfg)
+// 	// case "sqlite":
+// 	// return redisdb.NewRedisStore(cfg)
+// 	default:
+// 		return redisdb.NewRedisStore(cfg)
+// 	}
+// }
 
 func main() {
 	var cfg config.Config
@@ -59,13 +59,16 @@ func main() {
 
 	log := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
 
-	store := NewStore(&cfg)
+	// store := NewStore(&cfg)
+	// handle close connections to redis and sqlite
+	redisStore := redisdb.NewRedisStore(&cfg)
+	sqliteStore := sqlitedb.NewSqliteStore()
 
 	app := application{
 		cfg:             &cfg,
 		log:             log,
-		tinylinkService: services.NewTinylinkService(store.Tinylink),
-		userService:     services.NewUserService(store.User),
+		tinylinkService: services.NewTinylinkService(redisStore.Tinylink),
+		userService:     services.NewUserService(sqliteStore.User),
 		router:          mux.NewRouter(),
 	}
 

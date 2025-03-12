@@ -4,8 +4,9 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/domain/entities"
+	"github.com/Kostaaa1/tinylink/internal/data"
 	"github.com/Kostaaa1/tinylink/internal/store"
 )
 
@@ -17,15 +18,16 @@ func NewTinylinkService(tinylinkRepo store.TinylinkRepository) *TinylinkService 
 	return &TinylinkService{tinylinkRepo: tinylinkRepo}
 }
 
-func (s *TinylinkService) List(ctx context.Context, sessionID string) ([]*entities.Tinylink, error) {
-	links, err := s.tinylinkRepo.List(ctx, entities.QueryParams{SessionID: sessionID})
+func (s *TinylinkService) List(ctx context.Context, sessionID string) ([]*data.Tinylink, error) {
+	links, err := s.tinylinkRepo.List(ctx, data.QueryParams{SessionID: sessionID})
 	if err != nil {
 		return nil, err
 	}
+	time.Sleep(time.Second * 15)
 	return links, nil
 }
 
-func (s *TinylinkService) Save(ctx context.Context, sessionID, URL, alias string) (*entities.Tinylink, error) {
+func (s *TinylinkService) Save(ctx context.Context, sessionID, URL, alias string) (*data.Tinylink, error) {
 	if alias == "" {
 		s := sessionID + URL
 		alias = fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:8]
@@ -35,12 +37,12 @@ func (s *TinylinkService) Save(ctx context.Context, sessionID, URL, alias string
 		}
 	}
 
-	tl, err := entities.NewTinylink("http://localhost:3000", URL, alias)
+	tl, err := data.NewTinylink("http://localhost:3000", URL, alias)
 	if err != nil {
 		return nil, err
 	}
 
-	qp := entities.QueryParams{SessionID: sessionID, Alias: alias}
+	qp := data.QueryParams{SessionID: sessionID, Alias: alias}
 	if err := s.tinylinkRepo.Save(ctx, tl, qp); err != nil {
 		return nil, err
 	}
@@ -48,8 +50,8 @@ func (s *TinylinkService) Save(ctx context.Context, sessionID, URL, alias string
 	return tl, nil
 }
 
-func (s *TinylinkService) Get(ctx context.Context, sessionID, alias string) (*entities.Tinylink, error) {
-	tl, err := s.tinylinkRepo.Get(ctx, entities.QueryParams{SessionID: sessionID, Alias: alias})
+func (s *TinylinkService) Get(ctx context.Context, sessionID, alias string) (*data.Tinylink, error) {
+	tl, err := s.tinylinkRepo.Get(ctx, data.QueryParams{SessionID: sessionID, Alias: alias})
 	if err != nil {
 		return nil, err
 	}
@@ -57,5 +59,5 @@ func (s *TinylinkService) Get(ctx context.Context, sessionID, alias string) (*en
 }
 
 func (s *TinylinkService) Delete(ctx context.Context, sessionID, alias string) error {
-	return s.tinylinkRepo.Delete(ctx, entities.QueryParams{SessionID: sessionID, Alias: alias})
+	return s.tinylinkRepo.Delete(ctx, data.QueryParams{SessionID: sessionID, Alias: alias})
 }
