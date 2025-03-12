@@ -26,6 +26,6 @@ func NewSqliteStore() *store.Store {
 
 	return &store.Store{
 		User: NewSqliteUserRepository(db),
-		// Tinylink: NewSqliteTinylinkRepository(db),
+		// Tinylink: NewSQLiteTinylinkRepository(db),
 	}
 }
