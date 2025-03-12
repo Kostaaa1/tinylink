@@ -28,17 +28,6 @@ func init() {
 	}
 }
 
-// func NewStore(cfg *config.Config) *store.Store {
-// 	switch cfg.StorageType {
-// 	case "redis":
-// 		return redisdb.NewRedisStore(cfg)
-// 	// case "sqlite":
-// 	// return redisdb.NewRedisStore(cfg)
-// 	default:
-// 		return redisdb.NewRedisStore(cfg)
-// 	}
-// }
-
 func main() {
 	var cfg config.Config
 
