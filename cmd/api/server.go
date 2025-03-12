@@ -11,37 +11,19 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/api/handlers"
-	"github.com/Kostaaa1/tinylink/api/utils/jsonutil"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/internal/middleware/session"
-	myerr "github.com/Kostaaa1/tinylink/pkg/errors"
 )
 
-type envelope map[string]interface{}
-
-func (app *application) healthcheck(w http.ResponseWriter, r *http.Request) {
-	env := envelope{
-		"status": "available",
-		"system_info": map[string]string{
-			"environment": "devlopment",
-			"version":     "1.0",
-		},
-	}
-	err := jsonutil.WriteJSON(w, http.StatusOK, env, nil)
-	if err != nil {
-		myerr.ServerErrorResponse(w, r, err)
-	}
-}
-
 func (app *application) setupRouter() {
-	app.router.MethodNotAllowedHandler = http.HandlerFunc(myerr.MethodNotAllowedResponse)
-	app.router.NotFoundHandler = http.HandlerFunc(myerr.NotFoundResponse)
+	app.router.MethodNotAllowedHandler = http.HandlerFunc(handlers.MethodNotAllowedResponse)
+	app.router.NotFoundHandler = http.HandlerFunc(handlers.NotFoundResponse)
 
 	limit := ratelimiter.New(app.cfg.Limiter)
 	app.router.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
 
-	app.router.HandleFunc("/health", app.healthcheck)
+	app.router.HandleFunc("/health", handlers.HealthcheckHandler)
 
 	tlHandler := handlers.NewTinylinkHandler(app.tinylinkService)
 	app.router.HandleFunc("/getAll", tlHandler.List).Methods("GET")
@@ -49,8 +31,9 @@ func (app *application) setupRouter() {
 	app.router.HandleFunc("/{alias}", tlHandler.Redirect).Methods("GET")
 	app.router.HandleFunc("/{alias}", tlHandler.Delete).Methods("DELETE")
 
-	// userHandler := handlers.NewUserHandler(app.userService)
-	// userRoutes := app.router.PathPrefix("/users").Subrouter()
+	userHandler := handlers.NewUserHandler(app.userService)
+	userRoutes := app.router.PathPrefix("/users").Subrouter()
+	userRoutes.HandleFunc("/register", userHandler.Register).Methods("POST")
 	// userRoutes.HandleFunc("/{id}", userHandler.GetByID).Methods("GET")
 	// userRoutes.HandleFunc("/create", userHandler.Create).Methods("POST")
 }
@@ -63,9 +46,9 @@ func (app *application) serve() error {
 	srv := &http.Server{
 		Addr:         "0.0.0.0" + app.cfg.Port,
 		Handler:      app.router,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 4 * time.Second,
 		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
 	}
 
 	shutdownError := make(chan error)

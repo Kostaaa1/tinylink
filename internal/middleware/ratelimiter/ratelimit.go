@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/api/handlers"
 	"github.com/Kostaaa1/tinylink/pkg/config"
-	"github.com/Kostaaa1/tinylink/pkg/errors"
 	"golang.org/x/time/rate"
 )
 
@@ -54,7 +54,7 @@ func (rl *ratelimit) Middleware(next http.Handler) http.Handler {
 		if rl.enabled {
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil {
-				errors.ServerErrorResponse(w, r, err)
+				handlers.ServerErrorResponse(w, r, err)
 				return
 			}
 
@@ -75,7 +75,7 @@ func (rl *ratelimit) Middleware(next http.Handler) http.Handler {
 			mu.Unlock()
 
 			if !clients[ip].limiter.Allow() {
-				errors.RateLimitExceededResponse(w, r, rl.rps)
+				handlers.RateLimitExceededResponse(w, r, rl.rps)
 				return
 			}
 

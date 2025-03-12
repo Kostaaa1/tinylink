@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Kostaaa1/tinylink/pkg/errors"
+	"github.com/Kostaaa1/tinylink/api/handlers"
 )
 
 // Recover panic middleware will only occur if panic happens in the same goroutine that executes recoverPanic mdidleware. So if panic occurs in different goroutines (some background processing etc.), those panics will cause app to exit and bring down the server.
@@ -16,7 +16,7 @@ func RecoverPanic(next http.Handler) http.Handler {
 			if err := recover(); err != nil {
 				// Set Connection close header that will trigger go http server to close the current connection after response has been sent.
 				w.Header().Set("Connection", "close")
-				errors.ServerErrorResponse(w, r, fmt.Errorf("%s", err))
+				handlers.ServerErrorResponse(w, r, fmt.Errorf("%s", err))
 			}
 		}()
 		next.ServeHTTP(w, r)

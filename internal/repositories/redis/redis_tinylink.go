@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Kostaaa1/tinylink/internal/domain/entities"
-	service "github.com/Kostaaa1/tinylink/internal/store"
-	"github.com/Kostaaa1/tinylink/pkg/errors"
+	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/store"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -15,13 +14,13 @@ type RedisTinylinkRepository struct {
 	client *redis.Client
 }
 
-func NewRedisTinylinkRepository(client *redis.Client) service.TinylinkRepository {
+func NewRedisTinylinkRepository(client *redis.Client) store.TinylinkRepository {
 	return &RedisTinylinkRepository{
 		client: client,
 	}
 }
 
-func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *entities.Tinylink, qp entities.QueryParams) error {
+func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *data.Tinylink, qp data.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, tl.Alias)
 	urlKey := fmt.Sprintf("client:%s:original_url:%s", qp.SessionID, tl.OriginalURL)
 
@@ -30,11 +29,11 @@ func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *entities.Tinylin
 		return err
 	}
 	if ok {
-		return errors.ErrURLExists
+		return data.ErrURLExists
 	}
 
 	if _, err := r.client.Pipelined(ctx, func(rdb redis.Pipeliner) error {
-		rdb.HSet(ctx, pattern, "host", tl.Tinylink)
+		// rdb.HSet(ctx, pattern, "host", tl.Tinylink)
 		rdb.HSet(ctx, pattern, "alias", tl.Alias)
 		rdb.HSet(ctx, pattern, "original_url", tl.OriginalURL)
 		rdb.HSet(ctx, pattern, "qr:base64", tl.QR.Base64)
@@ -54,20 +53,20 @@ func (r *RedisTinylinkRepository) Save(ctx context.Context, tl *entities.Tinylin
 	return nil
 }
 
-func (r *RedisTinylinkRepository) Get(ctx context.Context, qp entities.QueryParams) (*entities.Tinylink, error) {
+func (r *RedisTinylinkRepository) Get(ctx context.Context, qp data.QueryParams) (*data.Tinylink, error) {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, qp.Alias)
 	v, err := r.client.HGetAll(ctx, pattern).Result()
 	if err != nil {
 		return nil, err
 	}
-	return entities.MapToTinylink(v), nil
+	return data.MapToTinylink(v), nil
 }
 
-func (r *RedisTinylinkRepository) List(ctx context.Context, qp entities.QueryParams) ([]*entities.Tinylink, error) {
+func (r *RedisTinylinkRepository) List(ctx context.Context, qp data.QueryParams) ([]*data.Tinylink, error) {
 	pattern := fmt.Sprintf("client:%s:*", qp.SessionID)
 
 	var cursor uint64
-	links := []*entities.Tinylink{}
+	links := []*data.Tinylink{}
 
 	for {
 		keys, newCursor, err := r.client.Scan(ctx, cursor, pattern, 100).Result()
@@ -99,7 +98,7 @@ func (r *RedisTinylinkRepository) List(ctx context.Context, qp entities.QueryPar
 			if err != nil {
 				continue
 			}
-			links = append(links, entities.MapToTinylink(v))
+			links = append(links, data.MapToTinylink(v))
 		}
 
 		cursor = newCursor
@@ -111,7 +110,7 @@ func (r *RedisTinylinkRepository) List(ctx context.Context, qp entities.QueryPar
 	return links, nil
 }
 
-func (r *RedisTinylinkRepository) Delete(ctx context.Context, qp entities.QueryParams) error {
+func (r *RedisTinylinkRepository) Delete(ctx context.Context, qp data.QueryParams) error {
 	pattern := fmt.Sprintf("client:%s:%s", qp.SessionID, qp.Alias)
 
 	ok, err := r.Exists(ctx, pattern)
@@ -153,7 +152,7 @@ func (r *RedisTinylinkRepository) SetAlias(ctx context.Context, alias string) er
 		return nil
 	}
 
-	return errors.ErrAliasExists
+	return data.ErrAliasExists
 }
 
 // func (r *RedisTinylinkRepository) SetOriginalURL(ctx context.Context, clientID, URL string) error {
