@@ -3,22 +3,52 @@ package sqlitedb
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/data"
 	"github.com/Kostaaa1/tinylink/internal/store"
+	"github.com/jmoiron/sqlx"
 )
 
 type SQLiteUserStore struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
-func NewSqliteUserStore(db *sql.DB) store.UserStore {
+func NewSQLiteUserStore(db *sqlx.DB) store.UserStore {
 	return &SQLiteUserStore{
 		db: db,
 	}
+}
+
+func (s *SQLiteUserStore) GetByEmail(email string) (*data.User, error) {
+	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE email = ?`
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	var user data.User
+	var createdAt int64
+	err := s.db.QueryRowContext(ctx, query, email).Scan(
+		&user.ID,
+		&createdAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.Hash,
+		&user.Activated,
+		&user.Version,
+	)
+	user.CreatedAt = time.Unix(createdAt, 0)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, data.ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return &user, err
 }
 
 func (s *SQLiteUserStore) Insert(user *data.User) error {
@@ -33,16 +63,15 @@ func (s *SQLiteUserStore) Insert(user *data.User) error {
 
 	row := s.db.QueryRowContext(ctx, query, args...)
 
-	var createdAtStr string
-	err := row.Scan(&user.ID, &createdAtStr, &user.Version)
+	var createdAt int64
+	err := row.Scan(&user.ID, &createdAt, &user.Version)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.emai") {
 			return data.ErrDuplicateEmail
 		}
-		fmt.Println("error while inserting user: ", err.Error())
 		return err
 	}
-	user.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
+	user.CreatedAt = time.Unix(createdAt, 0)
 
 	return nil
 }
@@ -57,15 +86,17 @@ func (s *SQLiteUserStore) GetByID(id int64) (*data.User, error) {
 
 	var user data.User
 
+	var createdAt int64
 	err := s.db.QueryRowContext(ctx, query, id).Scan(
 		&user.ID,
-		&user.CreatedAt,
+		&createdAt,
 		&user.Name,
 		&user.Email,
 		&user.Password,
 		&user.Activated,
 		&user.Version,
 	)
+	user.CreatedAt = time.Unix(createdAt, 0)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -99,7 +130,6 @@ func (s *SQLiteUserStore) Update(user *data.User) error {
 
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
-		fmt.Println("error while running update query: ", err)
 		switch {
 		case err == sql.ErrNoRows:
 			return data.ErrRecordNotFound
@@ -109,33 +139,4 @@ func (s *SQLiteUserStore) Update(user *data.User) error {
 	}
 
 	return nil
-}
-
-func (s *SQLiteUserStore) GetByEmail(email string) (*data.User, error) {
-	query := `SELECT id, created_at, name, email, password_hash, activated, version 
-        FROM users 
-        WHERE email = ?`
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-
-	var user data.User
-	err := s.db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.Name,
-		&user.Email,
-		&user.Password,
-		&user.Activated,
-		&user.Version,
-	)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, data.ErrRecordNotFound
-		}
-		return nil, err
-	}
-
-	return &user, err
 }

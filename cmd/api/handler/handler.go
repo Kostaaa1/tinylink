@@ -1,10 +1,16 @@
-package handlers
+package handler
 
 import (
 	"net/http"
 )
 
-func HealthcheckHandler(w http.ResponseWriter, r *http.Request) {
+type Handler struct {
+	*ErrorHandler
+	User     *UserHandler
+	Tinylink *TinylinkHandler
+}
+
+func (h *Handler) HealthcheckHandler(w http.ResponseWriter, r *http.Request) {
 	env := envelope{
 		"status": "available",
 		"system_info": map[string]string{
@@ -14,6 +20,6 @@ func HealthcheckHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err := writeJSON(w, http.StatusOK, env, nil)
 	if err != nil {
-		ServerErrorResponse(w, r, err)
+		h.ServerErrorResponse(w, r, err)
 	}
 }

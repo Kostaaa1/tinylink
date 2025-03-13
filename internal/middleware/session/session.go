@@ -45,8 +45,6 @@ func Middleware(next http.Handler) http.Handler {
 
 		sessionID, ok := session.Values["session_id"].(string)
 		if !ok || sessionID == "" {
-			log.Println("No valid session found. Creating new session...")
-
 			sessionKey := securecookie.GenerateRandomKey(8)
 			if sessionKey == nil {
 				http.Error(w, "Failed to generate session key", http.StatusInternalServerError)

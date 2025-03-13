@@ -10,32 +10,30 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/api/handlers"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/internal/middleware/session"
+	"github.com/gorilla/mux"
 )
 
+func (app *application) registerHandlers() {
+}
+
 func (app *application) setupRouter() {
-	app.router.MethodNotAllowedHandler = http.HandlerFunc(handlers.MethodNotAllowedResponse)
-	app.router.NotFoundHandler = http.HandlerFunc(handlers.NotFoundResponse)
+	r := mux.NewRouter()
+
+	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
+	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
 	limit := ratelimiter.New(app.cfg.Limiter)
-	app.router.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
+	r.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
 
-	app.router.HandleFunc("/health", handlers.HealthcheckHandler)
+	r.HandleFunc("/health", app.handler.HealthcheckHandler)
 
-	tlHandler := handlers.NewTinylinkHandler(app.tinylinkService)
-	app.router.HandleFunc("/getAll", tlHandler.List).Methods("GET")
-	app.router.HandleFunc("/create", tlHandler.Save).Methods("POST")
-	app.router.HandleFunc("/{alias}", tlHandler.Redirect).Methods("GET")
-	app.router.HandleFunc("/{alias}", tlHandler.Delete).Methods("DELETE")
+	app.handler.Tinylink.RegisterRoutes(r)
+	app.handler.User.RegisterRoutes(r)
 
-	userHandler := handlers.NewUserHandler(app.userService)
-	userRoutes := app.router.PathPrefix("/users").Subrouter()
-	userRoutes.HandleFunc("/register", userHandler.Register).Methods("POST")
-	// userRoutes.HandleFunc("/{id}", userHandler.GetByID).Methods("GET")
-	// userRoutes.HandleFunc("/create", userHandler.Create).Methods("POST")
+	app.router = r
 }
 
 func (app *application) serve() error {
@@ -44,7 +42,7 @@ func (app *application) serve() error {
 	}
 
 	srv := &http.Server{
-		Addr:         "0.0.0.0" + app.cfg.Port,
+		Addr:         app.cfg.Port,
 		Handler:      app.router,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 4 * time.Second,
@@ -57,18 +55,16 @@ func (app *application) serve() error {
 		quit := make(chan os.Signal, 1)
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		s := <-quit
-		app.log.PrintInfo("shutting down server", map[string]string{
-			"signal": s.String(),
-		})
+
+		app.logger.Info("shutting down server", "signal", s.String())
+
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
 		shutdownError <- srv.Shutdown(ctx)
 	}()
 
-	app.log.PrintInfo("starting server", map[string]string{
-		"addr": srv.Addr,
-		"env":  "dev",
-	})
+	app.logger.Info("starting server", "addr", srv.Addr, "env", "dev")
 
 	err := srv.ListenAndServe()
 
@@ -81,9 +77,7 @@ func (app *application) serve() error {
 		return err
 	}
 
-	app.log.PrintInfo("stopped server", map[string]string{
-		"addr": srv.Addr,
-	})
+	app.logger.Info("server stopped", "addr", srv.Addr)
 
 	return nil
 }

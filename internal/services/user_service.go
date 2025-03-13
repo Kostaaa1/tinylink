@@ -6,15 +6,19 @@ import (
 )
 
 type UserService struct {
-	UserStore store.UserStore
+	User store.UserStore
 }
 
 func NewUserService(userStore store.UserStore) *UserService {
 	return &UserService{
-		UserStore: userStore,
+		User: userStore,
 	}
 }
 
+func (s *UserService) GetByEmail(email string) (*data.User, error) {
+	return s.User.GetByEmail(email)
+}
+
 func (s *UserService) Register(user *data.User) error {
-	return s.UserStore.Insert(user)
+	return s.User.Insert(user)
 }

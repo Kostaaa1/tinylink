@@ -9,8 +9,6 @@ import (
 )
 
 var (
-	ErrRecordNotFound = errors.New("record not found")
-	ErrRecordExists   = errors.New("record not found")
 	ErrDuplicateEmail = errors.New("duplicate email")
 )
 

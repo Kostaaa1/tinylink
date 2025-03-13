@@ -1,4 +1,4 @@
 .env
 NOTES.md
 *.db
-*.sql
+*.sqlx

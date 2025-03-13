@@ -1,5 +1,7 @@
 package jsonlog
 
+// not used
+
 import (
 	"encoding/json"
 	"io"
