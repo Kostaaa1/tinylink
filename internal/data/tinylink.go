@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/skip2/go-qrcode"
 )
 
@@ -41,7 +43,6 @@ type Tinylink struct {
 func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
 	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", domain, alias), qrcode.Medium, 127)
 	if err != nil {
-		fmt.Println("error while generating QR code", err)
 		return nil, err
 	}
 
@@ -76,4 +77,18 @@ func MapToTinylink(data map[string]string) *Tinylink {
 			MimeType: data["qr:mimetype"],
 		},
 	}
+}
+
+type CreateTinylinkRequest struct {
+	URL    string `json:"url"`
+	Alias  string `json:"alias"`
+	Domain string `json:"domain"`
+}
+
+func (req *CreateTinylinkRequest) IsValid(v *validator.Validator) bool {
+	v.Check(req.URL != "", "url", "must be provided")
+	_, err := url.ParseRequestURI(req.URL)
+	v.Check(err == nil, "url", "invalid url format")
+	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
+	return v.Valid()
 }

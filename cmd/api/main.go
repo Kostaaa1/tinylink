@@ -2,23 +2,25 @@ package main
 
 import (
 	"flag"
+	"io"
+	"log/slog"
 	"os"
 
-	redisdb "github.com/Kostaaa1/tinylink/internal/repositories/redis"
-	sqlitedb "github.com/Kostaaa1/tinylink/internal/repositories/sqlite"
+	"github.com/Kostaaa1/tinylink/cmd/api/handler"
 	"github.com/Kostaaa1/tinylink/internal/services"
+	"github.com/Kostaaa1/tinylink/internal/store"
+	"github.com/Kostaaa1/tinylink/internal/store/redisdb"
+	"github.com/Kostaaa1/tinylink/internal/store/sqlitedb"
 	"github.com/Kostaaa1/tinylink/pkg/config"
-	"github.com/Kostaaa1/tinylink/pkg/jsonlog"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
 
 type application struct {
-	cfg             *config.Config
-	log             *jsonlog.Logger
-	tinylinkService *services.TinylinkService
-	userService     *services.UserService
-	router          *mux.Router
+	cfg     *config.Config
+	handler *handler.Handler
+	router  *mux.Router
+	logger  *slog.Logger
 }
 
 func init() {
@@ -28,43 +30,67 @@ func init() {
 	}
 }
 
+func setupLogger(w io.Writer, cfg *config.Config) *slog.Logger {
+	var logHandler slog.Handler
+	if cfg.Env == "development" {
+		logHandler = slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		logHandler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelError})
+	}
+	logger := slog.New(logHandler)
+	slog.SetDefault(logger)
+	return logger
+}
+
 func main() {
 	var cfg config.Config
-
 	flag.StringVar(&cfg.Port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.Env, "env", "development", "Environment (development|staging|production)")
-	flag.StringVar(&cfg.StorageType, "storage-type", "redis", "Storage (redis|sqlite|pocketbase)")
-
 	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "Rate limiter requests-per-second")
 	flag.IntVar(&cfg.Limiter.Burst, "limiter-burst", 4, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.Limiter.Enabled, "limiter-enabled", true, "Enable rate limiter")
-
+	flag.StringVar(&cfg.SQLitePath, "sqlite-db-path", "./db/tinylink.db", "Path to the SQLite database")
+	flag.BoolVar(&cfg.Redis.Enabled, "redis-enabled", false, "Enable redis")
 	flag.StringVar(&cfg.Redis.Addr, "redis-addr", "localhost:6379", "Redis server address")
 	flag.StringVar(&cfg.Redis.Password, "redis-password", "", "Redis password")
 	flag.IntVar(&cfg.Redis.DB, "redis-db", 0, "Redis database number")
 	flag.IntVar(&cfg.Redis.PoolSize, "redis-pool-size", 10, "Redis connection pool size")
-
 	flag.Parse()
 
-	log := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
+	logger := setupLogger(os.Stdout, &cfg)
 
-	// store := NewStore(&cfg)
-	// handle close connections to redis and sqlite
+	storeRegistry := store.NewRegistry()
+	defer storeRegistry.Close()
 
-	redisStore := redisdb.NewRedisStore(&cfg)
-	sqliteStore := sqlitedb.NewSqliteStore()
+	sqliteProvider := sqlitedb.NewProvider(cfg.SQLitePath)
+	storeRegistry.RegisterProvider(store.SQLite, sqliteProvider)
+
+	redisProvider := redisdb.NewProvider(&cfg.Redis)
+	storeRegistry.RegisterProvider(store.Redis, redisProvider)
+
+	tinylinkService := services.NewTinylinkService(
+		storeRegistry.GetTinylinkStore(store.Redis),
+		storeRegistry.GetTinylinkStore(store.SQLite),
+	)
+	userService := services.NewUserService(storeRegistry.GetUserStore(store.SQLite))
+
+	errHandler := handler.NewErrorHandler(logger)
+	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
+	userHandler := handler.NewUserHandler(userService, errHandler)
 
 	app := application{
-		cfg:             &cfg,
-		log:             log,
-		tinylinkService: services.NewTinylinkService(sqliteStore.Tinylink, redisStore.Tinylink),
-		userService:     services.NewUserService(sqliteStore.User),
-		router:          mux.NewRouter(),
+		cfg:    &cfg,
+		logger: logger,
+		handler: &handler.Handler{
+			ErrorHandler: errHandler,
+			Tinylink:     tinylinkHandler,
+			User:         userHandler,
+		},
 	}
 
 	app.setupRouter()
 
 	if err := app.serve(); err != nil {
-		app.log.PrintFatal(err, nil)
+		logger.Error("app.serve()", "error", err)
 	}
 }

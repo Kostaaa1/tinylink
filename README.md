@@ -17,7 +17,7 @@ URL shortener
 
 - DDD architecture 
 - gorilla/sessions - use cookie store to store TTL sessions
-- Use Redis/SQLite/SQLx
+- Use Redis/sqlite/sqlx
 - Implement Rate limiter 
 - Explore new Headers
 - Users - Auth/OAuth

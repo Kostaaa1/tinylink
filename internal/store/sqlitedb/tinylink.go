@@ -2,17 +2,17 @@ package sqlitedb
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/Kostaaa1/tinylink/internal/data"
 	"github.com/Kostaaa1/tinylink/internal/store"
+	"github.com/jmoiron/sqlx"
 )
 
 type SQLiteTinylinkStore struct {
-	db *sql.DB
+	db *sqlx.DB
 }
 
-func NewSQLiteTinylinkStore(db *sql.DB) store.TinylinkStore {
+func NewSQLiteTinylinkStore(db *sqlx.DB) store.TinylinkStore {
 	return &SQLiteTinylinkStore{
 		db: db,
 	}

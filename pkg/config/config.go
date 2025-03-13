@@ -1,11 +1,11 @@
 package config
 
 type Config struct {
-	Port        string
-	Env         string
-	StorageType string
-	Redis       RedisConfig
-	Limiter     RatelimitConfig
+	Port       string
+	Env        string
+	SQLitePath string
+	Redis      RedisConfig
+	Limiter    RatelimitConfig
 }
 
 type RatelimitConfig struct {
@@ -15,6 +15,7 @@ type RatelimitConfig struct {
 }
 
 type RedisConfig struct {
+	Enabled  bool
 	Addr     string
 	Password string
 	DB       int

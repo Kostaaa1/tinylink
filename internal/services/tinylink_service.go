@@ -11,22 +11,22 @@ import (
 )
 
 type TinylinkService struct {
-	authStore    store.TinylinkStore
-	nonauthStore store.TinylinkStore
+	primaryStore store.TinylinkStore
+	cacheStore   store.TinylinkStore
 }
 
 func NewTinylinkService(authStore, nonauthStore store.TinylinkStore) *TinylinkService {
 	return &TinylinkService{
-		authStore:    authStore,
-		nonauthStore: nonauthStore,
+		primaryStore: authStore,
+		cacheStore:   nonauthStore,
 	}
 }
 
 func (s *TinylinkService) getStore() store.TinylinkStore {
 	// if false {
-	// 	return s.authStore
+	// 	return s.primaryStore
 	// }
-	return s.nonauthStore
+	return s.cacheStore
 }
 
 func (s *TinylinkService) List(ctx context.Context, sessionID string) ([]*data.Tinylink, error) {

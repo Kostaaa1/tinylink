@@ -1,12 +1,12 @@
 package ratelimiter
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/api/handlers"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"golang.org/x/time/rate"
 )
@@ -52,13 +52,20 @@ func (rl *ratelimit) Middleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if rl.enabled {
+			w.Header().Set("Content-Type", "application/json")
+
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil {
-				handlers.ServerErrorResponse(w, r, err)
+				// handlers.ServerErrorResponse(w, r, err)
+
+				fmt.Println("error at ratelimit SplitHostPort: ", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte("the server encountered a problem and could not process your request"))
+
 				return
 			}
 
-			// testing...
+			// testing... [REMOVE IN PROD?]
 			if ip == "::1" {
 				ip = "127.0.0.1"
 			}
@@ -75,7 +82,8 @@ func (rl *ratelimit) Middleware(next http.Handler) http.Handler {
 			mu.Unlock()
 
 			if !clients[ip].limiter.Allow() {
-				handlers.RateLimitExceededResponse(w, r, rl.rps)
+				w.WriteHeader(http.StatusTooManyRequests)
+				w.Write([]byte("Rate limit exceeded, too many requests!"))
 				return
 			}
 
