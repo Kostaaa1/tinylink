@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/middleware/auth"
 	"github.com/Kostaaa1/tinylink/internal/services"
 	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/gorilla/mux"
@@ -25,28 +28,53 @@ func NewUserHandler(userService *services.UserService, errHandler *ErrorHandler)
 func (h *UserHandler) RegisterRoutes(r *mux.Router) {
 	userRoutes := r.PathPrefix("/users").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
-	userRoutes.HandleFunc("/{email}", h.GetByEmail).Methods("GET")
+	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
 }
 
-func (h *UserHandler) GetByEmail(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-
-	var email string
-	if len(params) > 0 {
-		email = params["email"]
+func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
-	user, err := h.service.GetByEmail(email)
-	if err != nil {
-		if errors.Is(err, data.ErrRecordNotFound) {
-			h.NotFoundResponse(w, r)
-			return
-		}
-		h.ServerErrorResponse(w, r, err)
+	if err := readJSON(r, &input); err != nil {
+		h.BadRequestResponse(w, r, err)
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"user": user}, nil); err != nil {
+	v := validator.New()
+	data.ValidateEmail(v, input.Email)
+	data.ValidatePasswordPlainText(v, input.Password)
+	if !v.Valid() {
+		h.FailedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
+
+	user, token, err := h.service.Login(ctx, input.Email, input.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrInvalidCredentials):
+			h.InvalidCredentialsResponse(w, r)
+		case errors.Is(err, data.ErrRecordNotFound):
+			h.NotFoundResponse(w, r)
+		default:
+			h.ServerErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     auth.SessionKey,
+		Value:    token.PlainText,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   int(data.DefaultTokenTTL.Seconds()),
+	})
+
+	if err := writeJSON(w, http.StatusOK, envelope{"user": user, "token": token}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -81,8 +109,10 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// err = h.Register(user)
-	err = h.service.Register(user)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
+
+	err = h.service.Register(ctx, user)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrDuplicateEmail):

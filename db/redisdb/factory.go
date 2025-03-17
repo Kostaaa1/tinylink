@@ -18,14 +18,15 @@ func NewRedisStore(cfg *config.RedisConfig) *db.RedisStore {
 		PoolSize: cfg.PoolSize,
 	})
 
-	pingctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 	defer cancel()
 
-	if err := client.Ping(pingctx).Err(); err != nil {
+	if err := client.Ping(ctx).Err(); err != nil {
 		log.Fatal(err)
 	}
 
 	return &db.RedisStore{
 		Tinylink: &RedisTinylinkStore{client: client},
+		Token:    &RedisTokenStore{client: client},
 	}
 }

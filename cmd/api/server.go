@@ -9,28 +9,25 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/Kostaaa1/tinylink/internal/middleware"
-	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
-	"github.com/gorilla/mux"
 )
 
-func (app *application) setupRouter() {
-	r := mux.NewRouter()
+// func (app *application) setupRouter() {
+// 	r := mux.NewRouter()
 
-	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
-	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
+// 	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
+// 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
+// redisStore := redisdb.NewRedisStore(&cfg.Redis)
+// auth.AuthMiddleware(&redisStore.Token)
+// 	authMiddleware := auth.Middleware()
+// 	limit := ratelimiter.New(app.cfg.Limiter)
+// 	r.Use(middleware.RecoverPanic, limit.Middleware, authMiddleware)
+// 	r.HandleFunc("/health", app.handler.HealthcheckHandler)
 
-	limit := ratelimiter.New(app.cfg.Limiter)
-	r.Use(middleware.RecoverPanic, limit.Middleware)
+// 	app.handler.Tinylink.RegisterRoutes(r)
+// 	app.handler.User.RegisterRoutes(r)
 
-	r.HandleFunc("/health", app.handler.HealthcheckHandler)
-
-	app.handler.Tinylink.RegisterRoutes(r)
-	app.handler.User.RegisterRoutes(r)
-
-	app.router = r
-}
+// 	app.router = r
+// }
 
 func (app *application) serve() error {
 	if !strings.HasPrefix(app.cfg.Port, ":") {

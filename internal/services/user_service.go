@@ -1,24 +1,58 @@
 package services
 
 import (
+	"context"
+	"strconv"
+	"time"
+
 	"github.com/Kostaaa1/tinylink/db"
 	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/middleware/auth"
 )
 
 type UserService struct {
-	User db.UserStore
+	User  db.UserStore
+	Token db.TokenStore
 }
 
-func NewUserService(userStore db.UserStore) *UserService {
+func NewUserService(userStore db.UserStore, tokenStore db.TokenStore) *UserService {
 	return &UserService{
-		User: userStore,
+		User:  userStore,
+		Token: tokenStore,
 	}
 }
 
-func (s *UserService) GetByEmail(email string) (*data.User, error) {
-	return s.User.GetByEmail(email)
+func (s *UserService) Login(ctx context.Context, email, password string) (*data.User, *data.Token, error) {
+	user, err := s.User.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	matches, err := user.Password.Matches(password)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !matches {
+		return nil, nil, data.ErrInvalidCredentials
+	}
+
+	token, ok := ctx.Value(auth.AuthTokenContextKey).(*data.Token)
+	if !ok {
+		sessionTTL := time.Hour * 24 * 30
+		userID := strconv.FormatUint(user.ID, 10)
+		token, err = data.GenerateToken(userID, data.DefaultTokenTTL, data.ScopeAuthentication)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := s.Token.Store(ctx, token, sessionTTL); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return user, token, nil
 }
 
-func (s *UserService) Register(user *data.User) error {
-	return s.User.Insert(user)
+func (s *UserService) Register(ctx context.Context, user *data.User) error {
+	return s.User.Insert(ctx, user)
 }

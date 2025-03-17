@@ -18,12 +18,9 @@ type SQLiteStore struct {
 }
 
 type TokenStore interface {
-	New(userID int64, ttl time.Duration, scope data.Scope) *data.Token
-	Store(token *data.Token) error
-	Get(token string) (*data.Token, error)
-	Revoke(token string) error
-	Validate(token string) error
-	ListActive() ([]*data.Token, error)
+	Store(ctx context.Context, token *data.Token, sessionTTL time.Duration) error
+	Get(ctx context.Context, tokenText string) (*data.Token, error)
+	RevokeAll(ctx context.Context, userID string) error
 }
 
 type TinylinkStore interface {
@@ -35,7 +32,8 @@ type TinylinkStore interface {
 }
 
 type UserStore interface {
-	Insert(user *data.User) error
-	GetByEmail(email string) (*data.User, error)
-	Update(user *data.User) error
+	Insert(ctx context.Context, user *data.User) error
+	GetByEmail(ctx context.Context, email string) (*data.User, error)
+	GetByID(ctx context.Context, userID string) (*data.User, error)
+	Update(ctx context.Context, user *data.User) error
 }
