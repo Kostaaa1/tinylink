@@ -1,15 +1,15 @@
 package services
 
 import (
+	"github.com/Kostaaa1/tinylink/db"
 	"github.com/Kostaaa1/tinylink/internal/data"
-	"github.com/Kostaaa1/tinylink/internal/store"
 )
 
 type UserService struct {
-	User store.UserStore
+	User db.UserStore
 }
 
-func NewUserService(userStore store.UserStore) *UserService {
+func NewUserService(userStore db.UserStore) *UserService {
 	return &UserService{
 		User: userStore,
 	}

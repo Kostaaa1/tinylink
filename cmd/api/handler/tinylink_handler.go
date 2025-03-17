@@ -92,7 +92,7 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Location", tl.OriginalURL)
+	w.Header().Set("Location", tl.URL.String())
 	w.WriteHeader(http.StatusFound)
 }
 

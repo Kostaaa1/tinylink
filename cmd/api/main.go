@@ -7,10 +7,9 @@ import (
 	"os"
 
 	"github.com/Kostaaa1/tinylink/cmd/api/handler"
+	"github.com/Kostaaa1/tinylink/db/redisdb"
+	"github.com/Kostaaa1/tinylink/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/services"
-	"github.com/Kostaaa1/tinylink/internal/store"
-	"github.com/Kostaaa1/tinylink/internal/store/redisdb"
-	"github.com/Kostaaa1/tinylink/internal/store/sqlitedb"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -44,6 +43,7 @@ func setupLogger(w io.Writer, cfg *config.Config) *slog.Logger {
 
 func main() {
 	var cfg config.Config
+
 	flag.StringVar(&cfg.Port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.Env, "env", "development", "Environment (development|staging|production)")
 	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "Rate limiter requests-per-second")
@@ -59,20 +59,14 @@ func main() {
 
 	logger := setupLogger(os.Stdout, &cfg)
 
-	storeRegistry := store.NewRegistry()
-	defer storeRegistry.Close()
+	sqliteStore := sqlitedb.NewSQLiteStore(cfg.SQLitePath)
+	redisStore := redisdb.NewRedisStore(&cfg.Redis)
 
-	sqliteProvider := sqlitedb.NewProvider(cfg.SQLitePath)
-	storeRegistry.RegisterProvider(store.SQLite, sqliteProvider)
-
-	redisProvider := redisdb.NewProvider(&cfg.Redis)
-	storeRegistry.RegisterProvider(store.Redis, redisProvider)
-
+	userService := services.NewUserService(sqliteStore.User)
 	tinylinkService := services.NewTinylinkService(
-		storeRegistry.GetTinylinkStore(store.Redis),
-		storeRegistry.GetTinylinkStore(store.SQLite),
+		sqliteStore.Tinylink,
+		redisStore.Tinylink,
 	)
-	userService := services.NewUserService(storeRegistry.GetUserStore(store.SQLite))
 
 	errHandler := handler.NewErrorHandler(logger)
 	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
