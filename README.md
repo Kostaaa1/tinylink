@@ -5,7 +5,7 @@
 
 URL shortener
 
-## Table of Contents
+<!-- ## Table of Contents
 
 - [Tinylink](#tinylink)
 	- [Table of Contents](#table-of-contents)
@@ -39,4 +39,4 @@ URL shortener
 
 ** Extra **
 - Analytics - click rate/geolocation/referrer sources/device types...
-- A/B testing ? - Enable users to create multiple versions of a short link to test which one performs better in terms of clicks. ?
+- A/B testing ? - Enable users to create multiple versions of a short link to test which one performs better in terms of clicks. ? -->
