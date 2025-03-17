@@ -8,18 +8,11 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/data"
-	"github.com/Kostaaa1/tinylink/internal/store"
 	"github.com/jmoiron/sqlx"
 )
 
 type SQLiteUserStore struct {
 	db *sqlx.DB
-}
-
-func NewSQLiteUserStore(db *sqlx.DB) store.UserStore {
-	return &SQLiteUserStore{
-		db: db,
-	}
 }
 
 func (s *SQLiteUserStore) GetByEmail(email string) (*data.User, error) {

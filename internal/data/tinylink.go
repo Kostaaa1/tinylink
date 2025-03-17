@@ -16,14 +16,8 @@ var (
 	ErrURLExists   = errors.New("you've already created a tinylink with this URL")
 )
 
-type QueryParams struct {
-	SessionID string
-	Alias     string
-}
-
 type QR struct {
-	// Data     []byte `json:"data"`
-	Base64   []byte `json:"base64"`
+	Data     []byte `json:"data"`
 	Width    string `json:"width"`
 	Height   string `json:"height"`
 	Size     string `json:"size"`
@@ -31,16 +25,20 @@ type QR struct {
 }
 
 type Tinylink struct {
-	// Tinylink    string    `json:"tinylink"`
-	Alias       string    `json:"alias"`
-	OriginalURL string    `json:"original_url"`
-	CreatedAt   time.Time `json:"created_at"`
-	QR          QR        `json:"qr"`
+	Alias     string    `json:"alias"`
+	URL       *url.URL  `json:"original_url"`
+	CreatedAt time.Time `json:"created_at"`
+	QR        QR        `json:"qr"`
 }
 
 // add validation logic for tinylink /maybe some helper function
 
 func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
+	parsedURL, err := url.Parse(originalURL)
+	if err != nil {
+		return nil, err
+	}
+
 	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", domain, alias), qrcode.Medium, 127)
 	if err != nil {
 		return nil, err
@@ -50,12 +48,11 @@ func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
 	base64Bytes = append(base64Bytes, pngBytes...)
 
 	return &Tinylink{
-		// Tinylink:    fmt.Sprintf("%s/%s", domain, alias),
-		Alias:       alias,
-		OriginalURL: originalURL,
-		CreatedAt:   time.Now(),
+		Alias:     alias,
+		URL:       parsedURL,
+		CreatedAt: time.Now(),
 		QR: QR{
-			Base64:   base64Bytes,
+			Data:     base64Bytes,
 			Width:    "127",
 			Height:   "127",
 			Size:     fmt.Sprintf("%d bytes", len(pngBytes)),
@@ -64,19 +61,22 @@ func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
 	}, nil
 }
 
-func MapToTinylink(data map[string]string) *Tinylink {
+func MapToTinylink(data map[string]string) (*Tinylink, error) {
+	url, err := url.Parse(data["url"])
+	if err != nil {
+		return nil, err
+	}
 	return &Tinylink{
-		// Tinylink:    data["host"],
-		Alias:       data["alias"],
-		OriginalURL: data["original_url"],
+		Alias: data["alias"],
+		URL:   url,
 		QR: QR{
-			Base64:   []byte(data["qr:data"]),
+			Data:     []byte(data["qr:data"]),
 			Width:    data["qr:width"],
 			Height:   data["qr:height"],
 			Size:     data["qr:size"],
 			MimeType: data["qr:mimetype"],
 		},
-	}
+	}, nil
 }
 
 type CreateTinylinkRequest struct {

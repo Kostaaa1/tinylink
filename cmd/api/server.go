@@ -12,12 +12,8 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/middleware"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
-	"github.com/Kostaaa1/tinylink/internal/middleware/session"
 	"github.com/gorilla/mux"
 )
-
-func (app *application) registerHandlers() {
-}
 
 func (app *application) setupRouter() {
 	r := mux.NewRouter()
@@ -26,7 +22,7 @@ func (app *application) setupRouter() {
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
 	limit := ratelimiter.New(app.cfg.Limiter)
-	r.Use(middleware.RecoverPanic, limit.Middleware, session.Middleware)
+	r.Use(middleware.RecoverPanic, limit.Middleware)
 
 	r.HandleFunc("/health", app.handler.HealthcheckHandler)
 
