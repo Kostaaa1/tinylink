@@ -18,7 +18,6 @@ func (r *RedisTinylinkStore) Close() error {
 	return r.client.Close()
 }
 
-// maybe add retries?
 func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink, userID string, ttl time.Duration) error {
 	tlKey := fmt.Sprintf("%s:%s", userID, tl.Alias)
 	urlKey := fmt.Sprintf("%s:url:%s", userID, tl.URL.RawPath)
@@ -41,7 +40,7 @@ func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink, userID
 		}
 
 		_, err = tx.TxPipelined(ctx, func(p redis.Pipeliner) error {
-			p.HSet(ctx, tlKey, map[string]interface{}{
+			if err := p.HSet(ctx, tlKey, map[string]interface{}{
 				"url":          tl.URL.String(),
 				"alias":        tl.Alias,
 				"created_at":   tl.CreatedAt.Unix(),
@@ -50,9 +49,15 @@ func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink, userID
 				"qr.height":    tl.QR.Height,
 				"qr.mime_type": tl.QR.MimeType,
 				"qr.size":      tl.QR.Size,
-			})
-			p.Set(ctx, urlKey, tl.URL.RawPath, ttl)
-			p.Expire(ctx, tlKey, ttl)
+			}).Err(); err != nil {
+				return err
+			}
+			if err := p.Set(ctx, urlKey, tl.URL.RawPath, ttl).Err(); err != nil {
+				return err
+			}
+			if err := p.Expire(ctx, tlKey, ttl).Err(); err != nil {
+				return err
+			}
 			return nil
 		})
 

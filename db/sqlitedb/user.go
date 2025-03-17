@@ -15,14 +15,38 @@ type SQLiteUserStore struct {
 	db *sqlx.DB
 }
 
-func (s *SQLiteUserStore) GetByEmail(email string) (*data.User, error) {
-	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE email = ?`
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
+func (s *SQLiteUserStore) GetByID(ctx context.Context, userID string) (*data.User, error) {
+	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE id = ?`
 
 	var user data.User
 	var createdAt int64
+
+	err := s.db.QueryRowContext(ctx, query, userID).Scan(
+		&user.ID,
+		&createdAt,
+		&user.Name,
+		&user.Email,
+		&user.Password.Hash,
+		&user.Activated,
+		&user.Version,
+	)
+	user.CreatedAt = time.Unix(createdAt, 0)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, data.ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	return &user, err
+}
+func (s *SQLiteUserStore) GetByEmail(ctx context.Context, email string) (*data.User, error) {
+	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE email = ?`
+
+	var user data.User
+	var createdAt int64
+
 	err := s.db.QueryRowContext(ctx, query, email).Scan(
 		&user.ID,
 		&createdAt,
@@ -44,13 +68,10 @@ func (s *SQLiteUserStore) GetByEmail(email string) (*data.User, error) {
 	return &user, err
 }
 
-func (s *SQLiteUserStore) Insert(user *data.User) error {
+func (s *SQLiteUserStore) Insert(ctx context.Context, user *data.User) error {
 	query := `INSERT INTO users (name, email, password_hash, activated) 
         VALUES (?, ?, ?, ?)
         RETURNING id, created_at, version`
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
 
 	args := []interface{}{user.Name, user.Email, user.Password.Hash, user.Activated}
 
@@ -69,39 +90,7 @@ func (s *SQLiteUserStore) Insert(user *data.User) error {
 	return nil
 }
 
-func (s *SQLiteUserStore) GetByID(id int64) (*data.User, error) {
-	query := `SELECT id, created_at, name, email, password_hash, activated, version 
-        FROM users 
-        WHERE id = ?`
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-
-	var user data.User
-
-	var createdAt int64
-	err := s.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
-		&createdAt,
-		&user.Name,
-		&user.Email,
-		&user.Password,
-		&user.Activated,
-		&user.Version,
-	)
-	user.CreatedAt = time.Unix(createdAt, 0)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, err
-		}
-		return nil, err
-	}
-
-	return &user, err
-}
-
-func (s *SQLiteUserStore) Update(user *data.User) error {
+func (s *SQLiteUserStore) Update(ctx context.Context, user *data.User) error {
 	query := `
         UPDATE users 
         SET name = ?, email = ?, password_hash = ?, activated = ?, version = version + 1 
@@ -117,9 +106,6 @@ func (s *SQLiteUserStore) Update(user *data.User) error {
 		user.ID,
 		user.Version,
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
 
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {

@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	ErrDuplicateEmail = errors.New("duplicate email")
+	ErrDuplicateEmail     = errors.New("duplicate email")
+	ErrInvalidCredentials = errors.New("passwords")
 )
 
 type User struct {
@@ -73,8 +74,7 @@ func ValidateUser(v *validator.Validator, user *User) {
 	if user.Password.plainText != nil {
 		ValidatePasswordPlainText(v, *user.Password.plainText)
 	}
-
 	if user.Password.Hash == nil {
-		panic("missing password has for user")
+		panic("missing password hash for user")
 	}
 }
