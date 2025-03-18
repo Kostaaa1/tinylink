@@ -6,16 +6,36 @@ import (
 	"strings"
 
 	"github.com/Kostaaa1/tinylink/db"
+	"github.com/Kostaaa1/tinylink/internal/data"
 )
 
 type contextKey string
 
 var (
 	SessionKey                     = "tinylink_session"
-	UserContextKey      contextKey = "user"
-	AuthTokenContextKey contextKey = "auth"
-	TempTokenContextKey contextKey = "temp_auth"
+	userContextKey      contextKey = "user"
+	authTokenContextKey contextKey = "auth"
+	tempTokenContextKey contextKey = "temp_auth"
 )
+
+func AuthTokenFromContext(ctx context.Context) *data.Token {
+	token, _ := ctx.Value(authTokenContextKey).(*data.Token)
+	return token
+}
+
+func TempTokenFromContext(ctx context.Context) *data.User {
+	token, _ := ctx.Value(tempTokenContextKey).(*data.User)
+	return token
+}
+
+func UserFromContext(ctx context.Context) *data.User {
+	user, _ := ctx.Value(userContextKey).(*data.User)
+	return user
+}
+
+func IsAuthenticated(ctx context.Context) bool {
+	return UserFromContext(ctx) != nil
+}
 
 func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -40,8 +60,8 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 				if err == nil && token != nil {
 					user, err := userStore.GetByID(ctx, token.UserID)
 					if err == nil {
-						ctx = context.WithValue(ctx, UserContextKey, user)
-						ctx = context.WithValue(ctx, AuthTokenContextKey, token)
+						ctx = context.WithValue(ctx, userContextKey, user)
+						ctx = context.WithValue(ctx, authTokenContextKey, token)
 					}
 				}
 			}
@@ -79,7 +99,7 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 
 // type contextKey string
 
-// const tinylinkSessionKey contextKey = "tinylink_session"
+// const TinylinkSessionKey contextKey = "tinylink_session"
 
 // func getAuthKey() []byte {
 // 	if key := os.Getenv("TINYLINK_AUTH_KEY"); key != "" {
@@ -97,7 +117,7 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 
 // func Middleware(next http.Handler) http.Handler {
 // 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		key := string(tinylinkSessionKey)
+// 		key := string(TinylinkSessionKey)
 // 		session, err := cookiestore.Get(r, key)
 // 		if err != nil {
 // 			log.Printf("Error retrieving session: %v", err)
@@ -105,12 +125,12 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 
 // 		sessionID, ok := session.Values["session_id"].(string)
 // 		if !ok || sessionID == "" {
-// 			sessionKey := securecookie.GenerateRandomKey(8)
-// 			if sessionKey == nil {
+// 			SessionKey := securecookie.GenerateRandomKey(8)
+// 			if SessionKey == nil {
 // 				http.Error(w, "Failed to generate session key", http.StatusInternalServerError)
 // 				return
 // 			}
-// 			session.Values["session_id"] = string(sessionKey)
+// 			session.Values["session_id"] = string(SessionKey)
 
 // 			session.Options = &sessions.Options{
 // 				Path:     "/",
@@ -126,13 +146,13 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 // 			}
 // 		}
 
-// 		ctx := context.WithValue(r.Context(), tinylinkSessionKey, session)
+// 		ctx := context.WithValue(r.Context(), TinylinkSessionKey, session)
 // 		next.ServeHTTP(w, r.WithContext(ctx))
 // 	})
 // }
 
 // func GetID(r *http.Request) (string, error) {
-// 	session, ok := r.Context().Value(tinylinkSessionKey).(*sessions.Session)
+// 	session, ok := r.Context().Value(TinylinkSessionKey).(*sessions.Session)
 // 	if !ok {
 // 		return "", errors.New("no session found in context")
 // 	}

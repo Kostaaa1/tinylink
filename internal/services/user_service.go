@@ -37,8 +37,8 @@ func (s *UserService) Login(ctx context.Context, email, password string) (*data.
 		return nil, nil, data.ErrInvalidCredentials
 	}
 
-	token, ok := ctx.Value(auth.AuthTokenContextKey).(*data.Token)
-	if !ok {
+	token := auth.AuthTokenFromContext(ctx)
+	if token != nil {
 		sessionTTL := time.Hour * 24 * 30
 		userID := strconv.FormatUint(user.ID, 10)
 		token, err = data.GenerateToken(userID, data.DefaultTokenTTL, data.ScopeAuthentication)
