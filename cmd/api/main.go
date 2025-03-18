@@ -47,7 +47,6 @@ func setupLogger(w io.Writer, cfg *config.Config) *slog.Logger {
 
 func main() {
 	var cfg config.Config
-
 	flag.StringVar(&cfg.Port, "port", "3000", "Server address port")
 	flag.StringVar(&cfg.Env, "env", "development", "Environment (development|staging|production)")
 	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "Rate limiter requests-per-second")
