@@ -41,6 +41,7 @@ func (s *SQLiteUserStore) GetByID(ctx context.Context, userID string) (*data.Use
 
 	return &user, err
 }
+
 func (s *SQLiteUserStore) GetByEmail(ctx context.Context, email string) (*data.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE email = ?`
 

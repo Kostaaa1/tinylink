@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/data"
-	"github.com/Kostaaa1/tinylink/internal/middleware/auth"
 	"github.com/Kostaaa1/tinylink/internal/services"
 	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/gorilla/mux"
@@ -65,14 +64,6 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	http.SetCookie(w, &http.Cookie{
-		Name:     auth.SessionKey,
-		Value:    token.PlainText,
-		Path:     "/",
-		HttpOnly: true,
-		MaxAge:   int(data.DefaultTokenTTL.Seconds()),
-	})
 
 	if err := writeJSON(w, http.StatusOK, envelope{"user": user, "token": token}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)

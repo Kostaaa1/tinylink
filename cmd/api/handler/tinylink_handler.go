@@ -1,9 +1,16 @@
 package handler
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/middleware/auth"
 	"github.com/Kostaaa1/tinylink/internal/services"
+	"github.com/Kostaaa1/tinylink/internal/validator"
 	"github.com/gorilla/mux"
 )
 
@@ -21,93 +28,114 @@ func NewTinylinkHandler(tinylinkService *services.TinylinkService, errHandler *E
 
 func (h *TinylinkHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/getAll", h.List).Methods("GET")
-	r.HandleFunc("/create", h.Save).Methods("POST")
+	r.HandleFunc("/create", h.Create).Methods("POST")
 	r.HandleFunc("/{alias}", h.Redirect).Methods("GET")
 	r.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 }
 
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
-	// sessionID, err := session.GetID(r)
-	// if err != nil {
-	// 	h.BadRequestResponse(w, r, err)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
+
+	user := auth.UserFromCtx(ctx)
+	// userID := user.GetID()
+	// if userID == "" {
+	// 	h.UnauthorizedResponse(w, r)
 	// 	return
 	// }
+	fmt.Println(user)
+	userID := user.GetID()
 
-	// links, err := h.service.List(r.Context(), sessionID)
-	// if err != nil {
-	// 	h.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
-	// 	return
-	// }
+	links, err := h.service.List(ctx, userID)
+	if err != nil {
+		h.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
 
-	// if err := writeJSON(w, http.StatusOK, envelope{"data": links}, nil); err != nil {
-	// 	h.ServerErrorResponse(w, r, err)
-	// }
+	if err := writeJSON(w, http.StatusOK, envelope{"data": links}, nil); err != nil {
+		h.ServerErrorResponse(w, r, err)
+	}
 }
 
-func (h *TinylinkHandler) Save(w http.ResponseWriter, r *http.Request) {
-	// var req data.CreateTinylinkRequest
+func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req data.CreateTinylinkRequest
+	if err := readJSON(r, &req); err != nil {
+		h.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+		return
+	}
 
-	// if err := readJSON(r, &req); err != nil {
-	// 	h.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
-	// 	return
-	// }
+	v := validator.New()
 
-	// v := validator.New()
-	// if ok := req.IsValid(v); !ok {
-	// 	h.FailedValidationResponse(w, r, v.Errors)
-	// 	return
-	// }
+	if ok := req.IsValid(v); !ok {
+		h.FailedValidationResponse(w, r, v.Errors)
+		return
+	}
 
-	// sessionID, err := session.GetID(r)
-	// if err != nil {
-	// 	h.BadRequestResponse(w, r, err)
-	// 	return
-	// }
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
 
-	// tl, err := h.service.Save(r.Context(), sessionID, req.URL, req.Alias)
-	// if err != nil {
-	// 	status, msg := h.MapErrorToStatus(err)
-	// 	h.ErrorResponse(w, r, status, msg)
-	// 	return
-	// }
+	if !auth.IsAuthenticated(ctx) {
+		h.UnauthorizedResponse(w, r)
+		return
+	}
 
-	// if err := writeJSON(w, http.StatusCreated, envelope{"data": tl}, nil); err != nil {
-	// 	h.ServerErrorResponse(w, r, err)
-	// }
+	tl, err := h.service.Create(ctx, req.URL, req.Alias)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrURLExists):
+			h.ErrorResponse(w, r, http.StatusConflict, "Tinylink already exists for this URL")
+		case errors.Is(err, data.ErrAliasExists):
+			h.ErrorResponse(w, r, http.StatusConflict, "Alias not available")
+		default:
+			h.ServerErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	if err := writeJSON(w, http.StatusCreated, envelope{"data": tl}, nil); err != nil {
+		h.ServerErrorResponse(w, r, err)
+	}
 }
 
 func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
-	// sessionID, err := session.GetID(r)
-	// if err != nil {
-	// 	h.BadRequestResponse(w, r, err)
-	// 	return
-	// }
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
 
-	// tinylinkAlias := mux.Vars(r)["alias"]
-	// tl, err := h.service.Get(r.Context(), sessionID, tinylinkAlias)
-	// if err != nil {
-	// 	return
-	// }
+	user := auth.UserFromCtx(ctx)
+	userId := user.GetID()
+	if userId == "" {
+		h.UnauthorizedResponse(w, r)
+		return
+	}
 
-	// w.Header().Set("Location", tl.URL.String())
-	// w.WriteHeader(http.StatusFound)
+	alias := mux.Vars(r)["alias"]
+	tl, err := h.service.Get(r.Context(), userId, alias)
+	if err != nil {
+		return
+	}
+
+	w.Header().Set("Location", tl.URL)
+	w.WriteHeader(http.StatusFound)
 }
 
 func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	// sessionID, err := session.GetID(r)
-	// if err != nil {
-	// 	h.BadRequestResponse(w, r, err)
-	// 	return
-	// }
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
 
-	// tinylink := mux.Vars(r)["alias"]
+	user := auth.UserFromCtx(ctx)
+	userId := user.GetID()
+	if userId == "" {
+		h.UnauthorizedResponse(w, r)
+		return
+	}
 
-	// if err := h.service.Delete(r.Context(), sessionID, tinylink); err != nil {
-	// 	h.ServerErrorResponse(w, r, err)
-	// 	return
-	// }
+	alias := mux.Vars(r)["alias"]
+	if err := h.service.Delete(r.Context(), userId, alias); err != nil {
+		h.ServerErrorResponse(w, r, err)
+		return
+	}
 
-	// if err := writeJSON(w, http.StatusOK, envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
-	// 	h.ServerErrorResponse(w, r, err)
-	// }
+	if err := writeJSON(w, http.StatusOK, envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
+		h.ServerErrorResponse(w, r, err)
+	}
 }

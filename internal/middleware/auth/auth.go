@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -18,23 +19,23 @@ var (
 	tempTokenContextKey contextKey = "temp_auth"
 )
 
-func AuthTokenFromContext(ctx context.Context) *data.Token {
+func AuthTokenFromCtx(ctx context.Context) *data.Token {
 	token, _ := ctx.Value(authTokenContextKey).(*data.Token)
 	return token
 }
 
-func TempTokenFromContext(ctx context.Context) *data.User {
+func TempTokenFromCtx(ctx context.Context) *data.User {
 	token, _ := ctx.Value(tempTokenContextKey).(*data.User)
 	return token
 }
 
-func UserFromContext(ctx context.Context) *data.User {
+func UserFromCtx(ctx context.Context) *data.User {
 	user, _ := ctx.Value(userContextKey).(*data.User)
 	return user
 }
 
 func IsAuthenticated(ctx context.Context) bool {
-	return UserFromContext(ctx) != nil
+	return UserFromCtx(ctx) != nil
 }
 
 func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Handler) http.Handler {
@@ -66,19 +67,20 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 				}
 			}
 
-			// 	tempTTL := time.Hour * 6
-			// 	tempToken, err := data.GenerateToken("", time.Hour*6, data.ScopeTemporary)
+			if tokenText == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Header().Set("Content-Type", "application/json")
+				res := map[string]interface{}{"error": "unauthorized request"}
+				b, _ := json.Marshal(res)
+				w.Write(b)
+			}
+
+			// TODO: this is for non authenticated users, this should be removed and this should be created only if user does some actions with tinylinks.
+			// if tokenText == "" {
+			// 	tempToken, err := data.GenerateToken("", data.TempAuthTokenTTL, data.ScopeTemporary)
 			// 	if err == nil {
-			// 		err := tokenStore.Store(ctx, tempToken, tempTTL)
+			// 		err := tokenStore.Store(ctx, tempToken)
 			// 		if err == nil {
-			// 			http.SetCookie(w, &http.Cookie{
-			// 				Name:     SessionKey,
-			// 				Value:    tempToken.PlainText,
-			// 				Path:     "/",
-			// 				HttpOnly: true,
-			// 				MaxAge:   int(tempTTL),
-			// 				// SameSite: http.SameS, // ne zna, staradi
-			// 			})
 			// 			ctx = context.WithValue(ctx, tempTokenContextKey, tempToken)
 			// 		}
 			// 	}
@@ -96,25 +98,20 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 // 	encrtpyionKey = getEncryptionKey()
 // 	cookiestore   = sessions.NewCookieStore(authKey, encrtpyionKey)
 // )
-
 // type contextKey string
-
 // const TinylinkSessionKey contextKey = "tinylink_session"
-
 // func getAuthKey() []byte {
 // 	if key := os.Getenv("TINYLINK_AUTH_KEY"); key != "" {
 // 		return []byte(key)
 // 	}
 // 	return securecookie.GenerateRandomKey(32)
 // }
-
 // func getEncryptionKey() []byte {
 // 	if key := os.Getenv("TINYLINK_ENCRYPTION_KEY"); key != "" {
 // 		return []byte(key)
 // 	}
 // 	return securecookie.GenerateRandomKey(16)
 // }
-
 // func Middleware(next http.Handler) http.Handler {
 // 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 // 		key := string(TinylinkSessionKey)
@@ -124,6 +121,7 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 // 		}
 
 // 		sessionID, ok := session.Values["session_id"].(string)
+
 // 		if !ok || sessionID == "" {
 // 			SessionKey := securecookie.GenerateRandomKey(8)
 // 			if SessionKey == nil {

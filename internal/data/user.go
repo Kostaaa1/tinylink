@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/validator"
@@ -26,6 +27,13 @@ type User struct {
 type password struct {
 	plainText *string
 	Hash      []byte
+}
+
+func (u *User) GetID() string {
+	if u != nil {
+		return ""
+	}
+	return strconv.FormatUint(u.ID, 10)
 }
 
 func (p *password) Set(plainText string) error {

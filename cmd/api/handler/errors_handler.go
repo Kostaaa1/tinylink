@@ -1,11 +1,8 @@
 package handler
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
-
-	"github.com/Kostaaa1/tinylink/internal/data"
 )
 
 type ErrorHandler struct {
@@ -38,6 +35,10 @@ func (h *ErrorHandler) ServerErrorResponse(w http.ResponseWriter, r *http.Reques
 	h.ErrorResponse(w, r, http.StatusInternalServerError, "the server encountered a problem and could not process your request")
 }
 
+func (h *ErrorHandler) UnauthorizedResponse(w http.ResponseWriter, r *http.Request) {
+	h.ErrorResponse(w, r, http.StatusUnauthorized, "unauthorized request")
+}
+
 func (h *ErrorHandler) FailedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {
 	h.ErrorResponse(w, r, http.StatusUnprocessableEntity, errors)
 }
@@ -56,15 +57,4 @@ func (h *ErrorHandler) NotFoundResponse(w http.ResponseWriter, r *http.Request) 
 
 func (h *ErrorHandler) MethodNotAllowedResponse(w http.ResponseWriter, r *http.Request) {
 	h.ErrorResponse(w, r, http.StatusMethodNotAllowed, "method not allowed for this resource")
-}
-
-func (h *ErrorHandler) MapErrorToStatus(err error) (int, string) {
-	switch {
-	case errors.Is(err, data.ErrURLExists):
-		return http.StatusConflict, "Tinylink already exists for this URL"
-	case errors.Is(err, data.ErrAliasExists):
-		return http.StatusConflict, "Alias not available"
-	default:
-		return http.StatusInternalServerError, "Internal server error"
-	}
 }

@@ -1,6 +1,7 @@
 package data
 
 import (
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,47 +18,59 @@ var (
 )
 
 type QR struct {
-	Data     []byte `json:"data"`
-	Width    string `json:"width"`
-	Height   string `json:"height"`
-	Size     string `json:"size"`
-	MimeType string `json:"mimetype"`
+	Data     []byte `db:"data" json:"data"`
+	Width    string `db:"width" json:"width"`
+	Height   string `db:"height" json:"height"`
+	Size     string `db:"size" json:"size"`
+	MimeType string `db:"mimetype" json:"mimetype"`
 }
 
 type Tinylink struct {
-	Alias     string    `json:"alias"`
-	URL       *url.URL  `json:"original_url"`
-	CreatedAt time.Time `json:"created_at"`
-	QR        QR        `json:"qr"`
+	ID        string    `db:"id" json:"id"`
+	Alias     string    `db:"alias" json:"alias"`
+	URL       string    `db:"original_url" json:"original_url"`
+	UserID    string    `db:"user_id" json:"user_id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	QR        QR        `db:"qr" json:"qr"`
+}
+
+// not effective?
+func generateAlias(userID, URL string) string {
+	s := fmt.Sprintf("%s%s%d", userID, URL, time.Now().Nanosecond())
+	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:8]
 }
 
 // add validation logic for tinylink /maybe some helper function
-
-func NewTinylink(domain, originalURL, alias string) (*Tinylink, error) {
-	parsedURL, err := url.Parse(originalURL)
+func NewTinylink(userID, domain, targetURL, alias string) (*Tinylink, error) {
+	parsedURL, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, err
 	}
 
-	pngBytes, err := qrcode.Encode(fmt.Sprintf("%s/%s", domain, alias), qrcode.Medium, 127)
+	if alias == "" {
+		alias = generateAlias(userID, targetURL)
+	}
+
+	u := fmt.Sprintf("%s/%s", domain, alias)
+	pngBytes, err := qrcode.Encode(u, qrcode.Medium, 127)
 	if err != nil {
 		return nil, err
 	}
-
 	base64Bytes := []byte("data:image/png;base64,")
 	base64Bytes = append(base64Bytes, pngBytes...)
 
 	return &Tinylink{
-		Alias:     alias,
-		URL:       parsedURL,
-		CreatedAt: time.Now(),
+		Alias:  alias,
+		URL:    parsedURL.String(),
+		UserID: userID,
 		QR: QR{
-			Data:     base64Bytes,
 			Width:    "127",
 			Height:   "127",
+			Data:     base64Bytes,
 			Size:     fmt.Sprintf("%d bytes", len(pngBytes)),
 			MimeType: http.DetectContentType(pngBytes),
 		},
+		CreatedAt: time.Now(),
 	}, nil
 }
 
@@ -68,7 +81,7 @@ func MapToTinylink(data map[string]string) (*Tinylink, error) {
 	}
 	return &Tinylink{
 		Alias: data["alias"],
-		URL:   url,
+		URL:   url.String(),
 		QR: QR{
 			Data:     []byte(data["qr:data"]),
 			Width:    data["qr:width"],

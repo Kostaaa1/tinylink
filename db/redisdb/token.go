@@ -14,61 +14,95 @@ type RedisTokenStore struct {
 	client *redis.Client
 }
 
-func (s *RedisTokenStore) RevokeAll(ctx context.Context, userID string) error {
-	key := fmt.Sprintf("tokens:%s", userID)
-	tokens, err := s.client.SMembers(ctx, key).Result()
+func (s *RedisTokenStore) RevokeAll(ctx context.Context, userID string, scope *data.Scope) error {
+	tokenKey := fmt.Sprintf("tokens:%s", userID)
+
+	tokens, err := s.client.SMembers(ctx, tokenKey).Result()
 	if err != nil {
 		return err
 	}
 
+	if len(tokens) == 0 {
+		return nil
+	}
+
 	_, err = s.client.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		var found bool
 		for _, token := range tokens {
-			if err := p.Del(ctx, fmt.Sprintf("session:%s", token)).Err(); err != nil {
-				return err
+			sessionKey := fmt.Sprintf("token:%s", token)
+
+			if scope != nil {
+				value, err := s.client.HGet(ctx, sessionKey, "scope").Result()
+				if err != nil {
+					return nil
+				}
+
+				if value == scope.String() {
+					if err := p.Del(ctx, sessionKey).Err(); err != nil {
+						return err
+					}
+					found = true
+				}
+			} else {
+				if err := p.Del(ctx, sessionKey).Err(); err != nil {
+					return err
+				}
 			}
 		}
-		p.Del(ctx, key)
+
+		if scope == nil {
+			p.Del(ctx, tokenKey)
+		} else if found {
+			p.SRem(ctx, tokenKey, tokens)
+		}
+
 		return nil
 	})
 
 	return err
 }
 
-func (s *RedisTokenStore) Store(ctx context.Context, token *data.Token, sessionTTL time.Duration) error {
-	fmt.Println("Store called")
-	tokenKey := fmt.Sprintf("session:%s", token.PlainText)
-	userTokensKey := fmt.Sprintf("tokens:%s", token.UserID)
+// tokens:user_id:tokenText - tokens:4:51d5kodsDa41 - set of tokens that belong to user, for revoking
+// token:51d5kodsDa41 - holds token metadata
+// token:51d5kodsDa41:token_data:
+// token:51d5kodsDa41:tinylinks:
+func (s *RedisTokenStore) Store(ctx context.Context, token *data.Token) error {
+	sessionKey := fmt.Sprintf("token:%s", token.PlainText)
 
 	_, err := s.client.TxPipelined(ctx, func(p redis.Pipeliner) error {
-		if err := p.HSet(ctx, tokenKey, map[string]interface{}{
+		if err := p.HSet(ctx, sessionKey, map[string]interface{}{
 			"user_id": token.UserID,
 			"token":   token.PlainText,
-			"expiry":  token.Expiry.Unix(),
 			"scope":   token.Scope.String(),
+			"expiry":  token.Expiry.Unix(),
 		}).Err(); err != nil {
 			return err
 		}
 
-		if err := p.Expire(ctx, tokenKey, token.TTL).Err(); err != nil {
-			return err
+		if token.UserID != "" {
+			tokenKey := fmt.Sprintf("tokens:%s", token.UserID)
+			if err := p.SAdd(ctx, tokenKey, token.PlainText).Err(); err != nil {
+				return err
+			}
+			if err := p.Expire(ctx, tokenKey, token.TTL).Err(); err != nil {
+				return err
+			}
 		}
 
-		if err := p.SAdd(ctx, userTokensKey, token.PlainText).Err(); err != nil {
-			return err
-		}
-
-		return p.Expire(ctx, userTokensKey, sessionTTL).Err()
+		return p.Expire(ctx, sessionKey, token.TTL).Err()
 	})
 
 	return err
 }
 
 func (s *RedisTokenStore) Get(ctx context.Context, tokenText string) (*data.Token, error) {
-	fmt.Println("Get called")
-	key := fmt.Sprintf("session:%s", tokenText)
+	key := fmt.Sprintf("token:%s", tokenText)
 
 	values, err := s.client.HGetAll(ctx, key).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return nil, data.ErrRecordNotFound
+		}
 		return nil, err
 	}
 
@@ -76,16 +110,19 @@ func (s *RedisTokenStore) Get(ctx context.Context, tokenText string) (*data.Toke
 		return nil, data.ErrRecordNotFound
 	}
 
-	unixTime, err := strconv.ParseInt(values["expiry"], 10, 64)
+	ttl, err := s.client.TTL(ctx, key).Result()
 	if err != nil {
 		return nil, err
 	}
-	expiry := time.Unix(unixTime, 0)
+
+	v, _ := strconv.Atoi(values["expiry"])
+	expiry := time.Unix(int64(v), 0)
 
 	return &data.Token{
 		PlainText: tokenText,
-		Expiry:    expiry,
 		UserID:    values["user_id"],
 		Scope:     data.GetScope(values["scope"]),
+		TTL:       ttl,
+		Expiry:    expiry,
 	}, nil
 }
