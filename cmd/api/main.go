@@ -62,9 +62,9 @@ func main() {
 
 	logger := setupLogger(os.Stdout, &cfg)
 
+	// make regitry for stores
 	sqliteStore := sqlitedb.NewSQLiteStore(cfg.SQLitePath)
 	redisStore := redisdb.NewRedisStore(&cfg.Redis)
-
 	userService := services.NewUserService(
 		sqliteStore.User,
 		redisStore.Token,
@@ -72,8 +72,8 @@ func main() {
 	tinylinkService := services.NewTinylinkService(
 		sqliteStore.Tinylink,
 		redisStore.Tinylink,
+		redisStore.Token,
 	)
-
 	errHandler := handler.NewErrorHandler(logger)
 	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
 	userHandler := handler.NewUserHandler(userService, errHandler)
@@ -93,8 +93,10 @@ func main() {
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
 	limit := ratelimiter.New(app.cfg.Limiter)
+
 	authMiddleware := auth.Middleware(redisStore.Token, sqliteStore.User)
 	r.Use(middleware.RecoverPanic, limit.Middleware, authMiddleware)
+
 	app.handler.Tinylink.RegisterRoutes(r)
 	app.handler.User.RegisterRoutes(r)
 

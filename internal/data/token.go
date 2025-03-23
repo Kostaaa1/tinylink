@@ -11,10 +11,9 @@ import (
 type Scope string
 
 var (
-	DefaultTokenTTL           = 24 * time.Hour // for authorized users
 	ScopeActivation     Scope = "activation"
 	ScopeAuthentication Scope = "authentication"
-	ScopeTemporary      Scope = "temporary"
+	ScopeTemporary      Scope = "anonymous_session"
 	ErrScopeNotValid          = errors.New("scope is not valid")
 )
 
@@ -57,25 +56,36 @@ type Token struct {
 	Scope     Scope         `json:"-"`
 }
 
-func GenerateToken(userID string, ttl time.Duration, scope Scope) (*Token, error) {
+func GenerateToken(userID string) *Token {
+	scope, ttl := determineTokenScope(userID)
+
 	token := &Token{
 		UserID: userID,
 		TTL:    ttl,
-		Expiry: time.Now().Add(ttl),
 		Scope:  scope,
 	}
 
-	randBytes := make([]byte, 16)
+	token.Expiry = time.Now().Add(ttl).Truncate(time.Second)
+	token.PlainText = generateRandomToken(16)
+	token.Hash = hashIt(token.PlainText)
 
-	_, err := rand.Read(randBytes)
-	if err != nil {
-		return nil, err
+	return token
+}
+
+func determineTokenScope(userID string) (Scope, time.Duration) {
+	if userID == "" {
+		return ScopeTemporary, time.Hour * 3
 	}
+	return ScopeAuthentication, time.Hour * 24
+}
 
-	token.PlainText = base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(randBytes)
+func hashIt(v string) []byte {
+	hash := sha256.Sum256([]byte(v))
+	return hash[:]
+}
 
-	hash := sha256.Sum256([]byte(token.PlainText))
-	token.Hash = hash[:]
-
-	return token, nil
+func generateRandomToken(n int) string {
+	randBytes := make([]byte, n)
+	rand.Read(randBytes)
+	return base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(randBytes)
 }

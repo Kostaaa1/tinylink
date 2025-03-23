@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"strconv"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/db"
 	"github.com/Kostaaa1/tinylink/internal/data"
@@ -27,30 +26,28 @@ func (s *UserService) Login(ctx context.Context, email, password string) (*data.
 	if err != nil {
 		return nil, nil, err
 	}
-
 	matches, err := user.Password.Matches(password)
 	if err != nil {
 		return nil, nil, err
 	}
-
 	if !matches {
 		return nil, nil, data.ErrInvalidCredentials
 	}
 
-	token := auth.AuthTokenFromContext(ctx)
-	if token != nil {
-		sessionTTL := time.Hour * 24 * 30
-		userID := strconv.FormatUint(user.ID, 10)
-		token, err = data.GenerateToken(userID, data.DefaultTokenTTL, data.ScopeAuthentication)
+	userID := strconv.FormatUint(user.ID, 10)
+	token := auth.AuthTokenFromCtx(ctx)
+	if token == nil {
+		err = s.Token.RevokeAll(ctx, userID, &data.ScopeAuthentication)
 		if err != nil {
 			return nil, nil, err
 		}
-		if err := s.Token.Store(ctx, token, sessionTTL); err != nil {
+		token = data.GenerateToken(userID)
+		if err := s.Token.Store(ctx, token); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	return user, token, nil
+	return user, token, err
 }
 
 func (s *UserService) Register(ctx context.Context, user *data.User) error {

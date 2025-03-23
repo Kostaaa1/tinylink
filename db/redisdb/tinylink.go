@@ -18,60 +18,60 @@ func (r *RedisTinylinkStore) Close() error {
 	return r.client.Close()
 }
 
-func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink, userID string, ttl time.Duration) error {
-	tlKey := fmt.Sprintf("%s:%s", userID, tl.Alias)
-	urlKey := fmt.Sprintf("%s:url:%s", userID, tl.URL.RawPath)
+func (r *RedisTinylinkStore) getTokenTTL(ctx context.Context, userID string) time.Duration {
+	tokenKey := fmt.Sprintf("tokens:%s", userID)
+	ttl := r.client.TTL(ctx, tokenKey).Val()
+	return ttl
+}
 
-	return r.client.Watch(ctx, func(tx *redis.Tx) error {
-		tlExists, err := tx.Exists(ctx, tlKey).Result()
+func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink) error {
+	tlKey := fmt.Sprintf("%s:%s", tl.UserID, tl.Alias)
+	exists, err := r.client.Exists(ctx, tlKey).Result()
+
+	if err != nil {
+		return err
+	}
+	if exists > 0 {
+		return data.ErrAliasExists
+	}
+
+	_, err = r.client.TxPipelined(ctx, func(p redis.Pipeliner) error {
+		err := p.HSet(ctx, tlKey, map[string]interface{}{
+			"url":          tl.URL,
+			"alias":        tl.Alias,
+			"created_at":   tl.CreatedAt.Unix(),
+			"qr.data":      tl.QR.Data,
+			"qr.width":     tl.QR.Width,
+			"qr.height":    tl.QR.Height,
+			"qr.mime_type": tl.QR.MimeType,
+			"qr.size":      tl.QR.Size,
+		}).Err()
+
 		if err != nil {
 			return err
 		}
-		if tlExists > 0 {
-			return data.ErrAliasExists
-		}
 
-		urlExists, err := tx.Exists(ctx, urlKey).Result()
-		if err != nil {
-			return err
+		tokenTTL := r.getTokenTTL(ctx, tl.UserID)
+		if tokenTTL > 0 {
+			return p.Expire(ctx, tlKey, tokenTTL).Err()
 		}
-		if urlExists > 0 {
-			return data.ErrURLExists
-		}
-
-		_, err = tx.TxPipelined(ctx, func(p redis.Pipeliner) error {
-			if err := p.HSet(ctx, tlKey, map[string]interface{}{
-				"url":          tl.URL.String(),
-				"alias":        tl.Alias,
-				"created_at":   tl.CreatedAt.Unix(),
-				"qr.data":      tl.QR.Data,
-				"qr.width":     tl.QR.Width,
-				"qr.height":    tl.QR.Height,
-				"qr.mime_type": tl.QR.MimeType,
-				"qr.size":      tl.QR.Size,
-			}).Err(); err != nil {
-				return err
-			}
-			if err := p.Set(ctx, urlKey, tl.URL.RawPath, ttl).Err(); err != nil {
-				return err
-			}
-			if err := p.Expire(ctx, tlKey, ttl).Err(); err != nil {
-				return err
-			}
-			return nil
-		})
 
 		return err
-	}, tlKey, urlKey)
+	})
+
+	return err
 }
 
 func (r *RedisTinylinkStore) Get(ctx context.Context, userID, alias string) (*data.Tinylink, error) {
 	pattern := fmt.Sprintf("%s:%s", userID, alias)
-	v, err := r.client.HGetAll(ctx, pattern).Result()
+	v, err := r.client.Get(ctx, pattern).Result()
 	if err != nil {
 		return nil, err
 	}
-	return data.MapToTinylink(v)
+
+	fmt.Println(v)
+	// return data.MapToTinylink(v)
+	return nil, nil
 }
 
 func (r *RedisTinylinkStore) List(ctx context.Context, userID string) ([]*data.Tinylink, error) {
@@ -129,12 +129,12 @@ func (r *RedisTinylinkStore) List(ctx context.Context, userID string) ([]*data.T
 func (r *RedisTinylinkStore) Delete(ctx context.Context, userID, alias string) error {
 	pattern := fmt.Sprintf("%s:%s", userID, alias)
 
-	ok, err := r.Exists(ctx, pattern)
+	exists, err := r.client.Exists(ctx, pattern).Result()
 	if err != nil {
 		return err
 	}
 
-	if ok {
+	if exists > 0 {
 		if err := r.client.Del(ctx, pattern).Err(); err != nil {
 			return err
 		}
@@ -145,34 +145,3 @@ func (r *RedisTinylinkStore) Delete(ctx context.Context, userID, alias string) e
 
 	return nil
 }
-
-func (r *RedisTinylinkStore) Exists(ctx context.Context, id string) (bool, error) {
-	n, err := r.client.Exists(ctx, id).Result()
-	if err != nil {
-		return false, err
-	}
-	return n > 0, nil
-}
-
-// func (r *RedisTinylinkStore) SetAlias(ctx context.Context, alias string) error {
-// 	pattern := fmt.Sprintf("global:%s", alias)
-// 	ok, err := r.Exists(ctx, pattern)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if !ok {
-// 		if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
-// 			return err
-// 		}
-// 		return nil
-// 	}
-// 	return data.ErrAliasExists
-// }
-
-// func (r *RedisTinylinkStore) SetOriginalURL(ctx context.Context, clientID, URL string) error {
-// 	pattern := fmt.Sprintf("%s:url:%s", clientID, URL)
-// 	if err := r.client.Set(ctx, pattern, nil, 0).Err(); err != nil {
-// 		return err
-// 	}
-// 	return errors.ErrURLExists
-// }

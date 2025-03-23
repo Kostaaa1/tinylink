@@ -30,3 +30,17 @@ func NewRedisStore(cfg *config.RedisConfig) *db.RedisStore {
 		Token:    &RedisTokenStore{client: client},
 	}
 }
+
+func NewRedisStoreFromClient(client *redis.Client) *db.RedisStore {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	return &db.RedisStore{
+		Tinylink: &RedisTinylinkStore{client: client},
+		Token:    &RedisTokenStore{client: client},
+	}
+}

@@ -2,63 +2,59 @@ package services
 
 import (
 	"context"
-	"crypto/sha1"
-	"fmt"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/db"
 	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/middleware/auth"
 )
 
 type TinylinkService struct {
-	primaryStore db.TinylinkStore
-	cacheStore   db.TinylinkStore
+	PrimaryStore db.TinylinkStore
+	CacheStore   db.TinylinkStore
+	Token        db.TokenStore
 }
 
-func NewTinylinkService(primaryStore, cacheStore db.TinylinkStore) *TinylinkService {
+func NewTinylinkService(primaryStore, cacheStore db.TinylinkStore, tokenStore db.TokenStore) *TinylinkService {
 	return &TinylinkService{
-		primaryStore: primaryStore,
-		cacheStore:   cacheStore,
+		PrimaryStore: primaryStore,
+		CacheStore:   cacheStore,
+		Token:        tokenStore,
 	}
 }
 
-func (s *TinylinkService) getStore() db.TinylinkStore {
-	// if false {
-	// 	return s.primaryStore
-	// }
-	return s.cacheStore
+func (s *TinylinkService) getStore(ctx context.Context) db.TinylinkStore {
+	if auth.IsAuthenticated(ctx) {
+		return s.PrimaryStore
+	}
+	return s.CacheStore
 }
 
 func (s *TinylinkService) List(ctx context.Context, userID string) ([]*data.Tinylink, error) {
-	links, err := s.getStore().List(ctx, userID)
+	links, err := s.getStore(ctx).List(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	time.Sleep(time.Second * 15)
 	return links, nil
 }
 
-func (s *TinylinkService) Save(ctx context.Context, userID, URL, alias string) (*data.Tinylink, error) {
-	if alias == "" {
-		s := userID + URL
-		alias = fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:8]
-	}
+func (s *TinylinkService) Create(ctx context.Context, URL, alias string) (*data.Tinylink, error) {
+	token := auth.AuthTokenFromCtx(ctx)
 
-	tl, err := data.NewTinylink("http://localhost:3000", URL, alias)
+	tinylink, err := data.NewTinylink(token.UserID, "http://localhost:3000", URL, alias)
 	if err != nil {
 		return nil, err
 	}
 
-	// zakucano
-	ttl := time.Duration(5 * time.Minute)
-	if err := s.getStore().Save(ctx, tl, userID, ttl); err != nil {
+	store := s.getStore(ctx)
+	if err := store.Save(ctx, tinylink); err != nil {
 		return nil, err
 	}
-	return tl, nil
+
+	return tinylink, nil
 }
 
 func (s *TinylinkService) Get(ctx context.Context, userID, alias string) (*data.Tinylink, error) {
-	tl, err := s.getStore().Get(ctx, userID, alias)
+	tl, err := s.getStore(ctx).Get(ctx, userID, alias)
 	if err != nil {
 		return nil, err
 	}
@@ -66,5 +62,5 @@ func (s *TinylinkService) Get(ctx context.Context, userID, alias string) (*data.
 }
 
 func (s *TinylinkService) Delete(ctx context.Context, userID, alias string) error {
-	return s.getStore().Delete(ctx, userID, alias)
+	return s.getStore(ctx).Delete(ctx, userID, alias)
 }

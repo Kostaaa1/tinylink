@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS tinylinks (
 
 CREATE TABLE IF NOT EXISTS qrcodes (
     tinylink_id INTEGER PRIMARY KEY,
+    data BLOB NOT NULL,
     width INTEGER,
     height INTEGER,
     size TEXT,
