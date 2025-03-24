@@ -94,11 +94,11 @@ func main() {
 
 	limit := ratelimiter.New(app.cfg.Limiter)
 
-	authMiddleware := auth.Middleware(redisStore.Token, sqliteStore.User)
-	r.Use(middleware.RecoverPanic, limit.Middleware, authMiddleware)
+	authMW := auth.Middleware(redisStore.Token, sqliteStore.User)
+	r.Use(middleware.RecoverPanic, limit.Middleware)
 
-	app.handler.Tinylink.RegisterRoutes(r)
 	app.handler.User.RegisterRoutes(r)
+	app.handler.Tinylink.RegisterRoutes(r, authMW)
 
 	app.router = r
 

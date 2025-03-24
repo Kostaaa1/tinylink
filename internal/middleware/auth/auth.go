@@ -73,18 +73,8 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 				res := map[string]interface{}{"error": "unauthorized request"}
 				b, _ := json.Marshal(res)
 				w.Write(b)
+				return
 			}
-
-			// TODO: this is for non authenticated users, this should be removed and this should be created only if user does some actions with tinylinks.
-			// if tokenText == "" {
-			// 	tempToken, err := data.GenerateToken("", data.TempAuthTokenTTL, data.ScopeTemporary)
-			// 	if err == nil {
-			// 		err := tokenStore.Store(ctx, tempToken)
-			// 		if err == nil {
-			// 			ctx = context.WithValue(ctx, tempTokenContextKey, tempToken)
-			// 		}
-			// 	}
-			// }
 
 			r = r.WithContext(ctx)
 
@@ -98,6 +88,7 @@ func Middleware(tokenStore db.TokenStore, userStore db.UserStore) func(http.Hand
 // 	encrtpyionKey = getEncryptionKey()
 // 	cookiestore   = sessions.NewCookieStore(authKey, encrtpyionKey)
 // )
+
 // type contextKey string
 // const TinylinkSessionKey contextKey = "tinylink_session"
 // func getAuthKey() []byte {

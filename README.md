@@ -15,21 +15,21 @@ URL shortener
 
 ## Goals
 
+# Server
 - DDD architecture 
-- gorilla/sessions - use cookie store to store TTL sessions
-- Use Redis/sqlite/sqlx
-- Implement Rate limiter 
-- Explore new Headers
-- Users - Auth/OAuth
-- Email service
-- Logging
-- Docker
-- Deploy/Github Actions
+- Use redis for auth tokens and TTL data
+- Use sqlite for users and persisted data
+- Implement authentication/authorization
+- Implement rate limiting
+- Implement user activation
+- Implement SMTP for sending mails
+- Implement stripe and subscription plans
+- Implement optional 2FA
+- Implement analytics
 
--- Extra
-- TLS
-- Automate stuff with shell
-- Payment Stripe?
+# Client 
+- simple UI (react, htmx or sum)
+- generate QR codes for tinylinks
 
 ---
 

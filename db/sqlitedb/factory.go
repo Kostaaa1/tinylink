@@ -19,6 +19,15 @@ func NewSQLiteStore(dbPath string) *db.SQLiteStore {
 	sqldb.SetMaxIdleConns(25)
 	sqldb.SetMaxOpenConns(25)
 
+	if _, err := sqldb.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		log.Fatal("Failed to enable foreign keys:", err)
+	}
+
+	// Enable Write-Ahead Logging ?
+	// if _, err := sqldb.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+	// 	log.Fatal("Failed to enable foreign keys:", err)
+	// }
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
