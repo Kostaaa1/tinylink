@@ -25,8 +25,11 @@ type TokenStore interface {
 type TinylinkStore interface {
 	List(ctx context.Context, userID string) ([]*data.Tinylink, error)
 	Delete(ctx context.Context, userID, id string) error
-	Save(ctx context.Context, tl *data.Tinylink) error
-	Get(ctx context.Context, userID, id string) (*data.Tinylink, error)
+	Insert(ctx context.Context, tl *data.Tinylink) error
+	Update(ctx context.Context, tl *data.Tinylink) error
+	IncrementUsageCount(ctx context.Context, alias string) error
+	Get(ctx context.Context, userID, alias string) (*data.Tinylink, error)
+	GetPublic(ctx context.Context, alias string) (*data.Tinylink, error)
 }
 
 type UserStore interface {

@@ -26,8 +26,8 @@ func NewRedisStore(cfg *config.RedisConfig) *db.RedisStore {
 	}
 
 	return &db.RedisStore{
-		Tinylink: &RedisTinylinkStore{client: client},
-		Token:    &RedisTokenStore{client: client},
+		// Tinylink: &RedisTinylinkStore{client: client},
+		Token: &RedisTokenStore{client: client},
 	}
 }
 
@@ -40,7 +40,7 @@ func NewRedisStoreFromClient(client *redis.Client) *db.RedisStore {
 	}
 
 	return &db.RedisStore{
-		Tinylink: &RedisTinylinkStore{client: client},
-		Token:    &RedisTokenStore{client: client},
+		// Tinylink: &RedisTinylinkStore{client: client},
+		Token: &RedisTokenStore{client: client},
 	}
 }

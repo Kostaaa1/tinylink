@@ -24,7 +24,11 @@ func (r *RedisTinylinkStore) getTokenTTL(ctx context.Context, userID string) tim
 	return ttl
 }
 
-func (r *RedisTinylinkStore) Save(ctx context.Context, tl *data.Tinylink) error {
+func (r *RedisTinylinkStore) Update(ctx context.Context, tl *data.Tinylink) error {
+	return nil
+}
+
+func (r *RedisTinylinkStore) Insert(ctx context.Context, tl *data.Tinylink) error {
 	tlKey := fmt.Sprintf("%s:%s", tl.UserID, tl.Alias)
 	exists, err := r.client.Exists(ctx, tlKey).Result()
 

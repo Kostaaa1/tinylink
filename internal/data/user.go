@@ -30,7 +30,7 @@ type password struct {
 }
 
 func (u *User) GetID() string {
-	if u != nil {
+	if u == nil {
 		return ""
 	}
 	return strconv.FormatUint(u.ID, 10)

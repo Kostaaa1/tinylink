@@ -30,34 +30,63 @@ func (s *TinylinkService) getStore(ctx context.Context) db.TinylinkStore {
 }
 
 func (s *TinylinkService) List(ctx context.Context, userID string) ([]*data.Tinylink, error) {
-	links, err := s.getStore(ctx).List(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	return links, nil
+	return s.getStore(ctx).List(ctx, userID)
 }
 
-func (s *TinylinkService) Create(ctx context.Context, URL, alias string) (*data.Tinylink, error) {
+func (s *TinylinkService) Insert(ctx context.Context, req data.InsertTinylinkRequest) (*data.Tinylink, error) {
 	token := auth.AuthTokenFromCtx(ctx)
-
-	tinylink, err := data.NewTinylink(token.UserID, "http://localhost:3000", URL, alias)
-	if err != nil {
-		return nil, err
+	tl := &data.Tinylink{
+		URL:        req.URL,
+		Alias:      req.Alias,
+		UserID:     token.UserID,
+		Domain:     req.Domain,
+		Public:     req.Public,
+		UsageCount: 0,
 	}
 
 	store := s.getStore(ctx)
-	if err := store.Save(ctx, tinylink); err != nil {
+	if err := store.Insert(ctx, tl); err != nil {
 		return nil, err
 	}
 
-	return tinylink, nil
+	return tl, nil
 }
 
-func (s *TinylinkService) Get(ctx context.Context, userID, alias string) (*data.Tinylink, error) {
+func (s *TinylinkService) Update(ctx context.Context, req data.UpdateTinylinkRequest) (*data.Tinylink, error) {
+	tl := &data.Tinylink{
+		ID:     req.ID,
+		Alias:  req.Alias,
+		Domain: req.Domain,
+		Public: req.Public,
+	}
+	if err := s.getStore(ctx).Update(ctx, tl); err != nil {
+		return nil, err
+	}
+	return tl, nil
+}
+
+func (s *TinylinkService) Get(ctx context.Context, alias string) (*data.Tinylink, error) {
+	user := auth.UserFromCtx(ctx)
+	userID := user.GetID()
+
+	if userID == "" {
+		// getPublic should work only for sqlite
+		tl, err := s.PrimaryStore.GetPublic(ctx, alias)
+		if err != nil {
+			return nil, err
+		}
+		return tl, nil
+	}
+
 	tl, err := s.getStore(ctx).Get(ctx, userID, alias)
 	if err != nil {
 		return nil, err
 	}
+
+	if err := s.getStore(ctx).IncrementUsageCount(ctx, alias); err != nil {
+		return nil, err
+	}
+
 	return tl, nil
 }
 
