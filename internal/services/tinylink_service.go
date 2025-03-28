@@ -36,12 +36,12 @@ func (s *TinylinkService) List(ctx context.Context, userID string) ([]*data.Tiny
 func (s *TinylinkService) Insert(ctx context.Context, req data.InsertTinylinkRequest) (*data.Tinylink, error) {
 	token := auth.AuthTokenFromCtx(ctx)
 	tl := &data.Tinylink{
-		URL:        req.URL,
-		Alias:      req.Alias,
-		UserID:     token.UserID,
-		Domain:     req.Domain,
-		Public:     req.Public,
-		UsageCount: 0,
+		OriginalURL: req.OriginalURL,
+		Alias:       req.Alias,
+		UserID:      token.UserID,
+		Domain:      req.Domain,
+		Private:     req.Private,
+		UsageCount:  0,
 	}
 
 	store := s.getStore(ctx)
@@ -54,10 +54,10 @@ func (s *TinylinkService) Insert(ctx context.Context, req data.InsertTinylinkReq
 
 func (s *TinylinkService) Update(ctx context.Context, req data.UpdateTinylinkRequest) (*data.Tinylink, error) {
 	tl := &data.Tinylink{
-		ID:     req.ID,
-		Alias:  req.Alias,
-		Domain: req.Domain,
-		Public: req.Public,
+		ID:      req.ID,
+		Alias:   req.Alias,
+		Domain:  req.Domain,
+		Private: req.Private,
 	}
 	if err := s.getStore(ctx).Update(ctx, tl); err != nil {
 		return nil, err

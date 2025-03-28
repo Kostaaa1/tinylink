@@ -9,6 +9,7 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/data"
 	"github.com/jmoiron/sqlx"
+	"github.com/mattn/go-sqlite3"
 )
 
 type SQLiteTinylinkStore struct {
@@ -16,30 +17,39 @@ type SQLiteTinylinkStore struct {
 }
 
 type flatTL struct {
-	ID         uint64         `db:"id"`
-	Alias      string         `db:"alias"`
-	URL        string         `db:"original_url"`
-	UserID     string         `db:"user_id"`
-	CreatedAt  string         `db:"created_at"`
-	Public     bool           `db:"public"`
-	Domain     string         `db:"domain"`
-	UsageCount int            `db:"usage_count"`
-	QRData     []byte         `db:"data"`
-	QRWidth    sql.NullString `db:"width"`
-	QRHeight   sql.NullString `db:"height"`
-	QRSize     sql.NullString `db:"size"`
-	QRMimeType sql.NullString `db:"mimetype"`
+	ID          uint64         `db:"id"`
+	Alias       string         `db:"alias"`
+	OriginalURL string         `db:"original_url"`
+	UserID      string         `db:"user_id"`
+	CreatedAt   string         `db:"created_at"`
+	Private     bool           `db:"private"`
+	Domain      string         `db:"domain"`
+	UsageCount  int            `db:"usage_count"`
+	QRData      []byte         `db:"data"`
+	QRWidth     sql.NullString `db:"width"`
+	QRHeight    sql.NullString `db:"height"`
+	QRSize      sql.NullString `db:"size"`
+	QRMimeType  sql.NullString `db:"mimetype"`
+}
+
+func isUniqueConstraintErr(err error) bool {
+	if sqliteError, ok := err.(sqlite3.Error); ok {
+		if sqliteError.Code == sqlite3.ErrConstraint && sqliteError.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *SQLiteTinylinkStore) Update(ctx context.Context, tl *data.Tinylink) error {
-	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_public = ? WHERE id = ? 
+	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ? WHERE id = ? 
 	RETURNING user_id, original_url, usage_count, domain, created_at`
 
-	args := []interface{}{tl.Alias, tl.Domain, tl.Public, tl.ID}
+	args := []interface{}{tl.Alias, tl.Domain, tl.Private, tl.ID}
 	var createdAt int64
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(
 		&tl.UserID,
-		&tl.URL,
+		&tl.OriginalURL,
 		&tl.UsageCount,
 		&tl.Domain,
 		&createdAt,
@@ -49,6 +59,9 @@ func (s *SQLiteTinylinkStore) Update(ctx context.Context, tl *data.Tinylink) err
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return data.ErrRecordNotFound
+		}
+		if isUniqueConstraintErr(err) {
+			return data.ErrAliasExists
 		}
 		return err
 	}
@@ -62,42 +75,23 @@ func (s *SQLiteTinylinkStore) Insert(ctx context.Context, tl *data.Tinylink) err
 		return err
 	}
 
-	query := `INSERT INTO tinylinks (user_id, alias, original_url, domain, is_public) 
+	query := `INSERT INTO tinylinks (user_id, alias, original_url, domain, is_private) 
 		VALUES (?, ?, ?, ?, ?)
 		RETURNING id, created_at`
 
-	args := []interface{}{tl.UserID, tl.Alias, tl.URL, tl.Domain, tl.Public}
+	args := []interface{}{tl.UserID, tl.Alias, tl.OriginalURL, tl.Domain, tl.Private}
 
 	var createdAt int64
 	err = tx.QueryRowContext(ctx, query, args...).Scan(&tl.ID, &createdAt)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if isUniqueConstraintErr(err) {
 			return data.ErrAliasExists
 		}
+
 		tx.Rollback()
 		return err
 	}
 	tl.CreatedAt = time.Unix(createdAt, 0)
-
-	if tl.QR != nil {
-		queryQR := `INSERT INTO qrcodes 
-			(
-				tinylink_id,
-				data,
-				width,
-				height,
-				size,
-				mime_type
-			) 
-			VALUES (?, ?, ?, ?, ?, ?)
-		`
-		argsQR := []interface{}{tl.ID, tl.QR.Data, tl.QR.Width, tl.QR.Height, tl.QR.Size, tl.QR.MimeType}
-		_, err = tx.ExecContext(ctx, queryQR, argsQR...)
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
 
 	return tx.Commit()
 }
@@ -123,23 +117,12 @@ func (s *SQLiteTinylinkStore) List(ctx context.Context, userID string) ([]*data.
 	for _, r := range links {
 		createdAt, _ := time.Parse("2006-01-02 15:04:05", r.CreatedAt)
 		tl := &data.Tinylink{
-			ID:        r.ID,
-			Alias:     r.Alias,
-			UserID:    r.UserID,
-			URL:       r.URL,
-			CreatedAt: createdAt,
+			ID:          r.ID,
+			Alias:       r.Alias,
+			UserID:      r.UserID,
+			OriginalURL: r.OriginalURL,
+			CreatedAt:   createdAt,
 		}
-
-		if r.QRData != nil && r.QRWidth.Valid && r.QRHeight.Valid && r.QRSize.Valid && r.QRMimeType.Valid {
-			tl.QR = &data.QR{
-				Data:     r.QRData,
-				Width:    r.QRWidth.String,
-				Height:   r.QRHeight.String,
-				Size:     r.QRSize.String,
-				MimeType: r.QRMimeType.String,
-			}
-		}
-
 		tinylinks = append(tinylinks, tl)
 	}
 
@@ -154,7 +137,7 @@ func (s *SQLiteTinylinkStore) GetPublic(ctx context.Context, alias string) (*dat
 			q.data, q.width, q.height, q.size, q.mime_type as mimetype
 		FROM tinylinks t
 		LEFT JOIN qrcodes q ON t.id = q.tinylink_id
-		WHERE t.alias = ? AND t.is_public = 1
+		WHERE t.alias = ? AND t.is_private = 1
 	`
 
 	var r flatTL
@@ -171,21 +154,11 @@ func (s *SQLiteTinylinkStore) GetPublic(ctx context.Context, alias string) (*dat
 	}
 
 	tl := &data.Tinylink{
-		ID:        r.ID,
-		Alias:     r.Alias,
-		URL:       r.URL,
-		UserID:    r.UserID,
-		CreatedAt: createdAt,
-	}
-
-	if r.QRData != nil && r.QRWidth.Valid && r.QRHeight.Valid && r.QRSize.Valid && r.QRMimeType.Valid {
-		tl.QR = &data.QR{
-			Data:     r.QRData,
-			Width:    r.QRWidth.String,
-			Height:   r.QRHeight.String,
-			Size:     r.QRSize.String,
-			MimeType: r.QRMimeType.String,
-		}
+		ID:          r.ID,
+		Alias:       r.Alias,
+		OriginalURL: r.OriginalURL,
+		UserID:      r.UserID,
+		CreatedAt:   createdAt,
 	}
 
 	return tl, nil
@@ -216,21 +189,11 @@ func (s *SQLiteTinylinkStore) Get(ctx context.Context, userID, alias string) (*d
 	}
 
 	tl := &data.Tinylink{
-		ID:        r.ID,
-		Alias:     r.Alias,
-		URL:       r.URL,
-		UserID:    r.UserID,
-		CreatedAt: createdAt,
-	}
-
-	if r.QRData != nil && r.QRWidth.Valid && r.QRHeight.Valid && r.QRSize.Valid && r.QRMimeType.Valid {
-		tl.QR = &data.QR{
-			Data:     r.QRData,
-			Width:    r.QRWidth.String,
-			Height:   r.QRHeight.String,
-			Size:     r.QRSize.String,
-			MimeType: r.QRMimeType.String,
-		}
+		ID:          r.ID,
+		Alias:       r.Alias,
+		OriginalURL: r.OriginalURL,
+		UserID:      r.UserID,
+		CreatedAt:   createdAt,
 	}
 
 	return tl, nil

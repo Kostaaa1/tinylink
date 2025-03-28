@@ -74,6 +74,7 @@ func main() {
 		redisStore.Tinylink,
 		redisStore.Token,
 	)
+
 	errHandler := handler.NewErrorHandler(logger)
 	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
 	userHandler := handler.NewUserHandler(userService, errHandler)
