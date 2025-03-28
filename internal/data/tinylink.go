@@ -1,9 +1,7 @@
 package data
 
 import (
-	"crypto/sha1"
 	"errors"
-	"fmt"
 	"net/url"
 	"time"
 
@@ -15,29 +13,17 @@ var (
 	ErrURLExists   = errors.New("you've already created a tinylink with this URL")
 )
 
-type QR struct {
-	Data     []byte `json:"data"`
-	Width    string `json:"width"`
-	Height   string `json:"height"`
-	Size     string `json:"size"`
-	MimeType string `json:"mimetype"`
-}
-
 type Tinylink struct {
-	ID         uint64    `json:"id"`
-	Alias      string    `json:"alias"`
-	URL        string    `json:"original_url"`
-	UserID     string    `json:"user_id"`
-	Public     bool      `json:"public"`
-	CreatedAt  time.Time `json:"created_at"`
-	UsageCount int       `json:"usage_count,omitempty"`
-	Domain     string    `json:"domain,omitempty"`
-	QR         *QR       `json:"qr,omitempty"`
-}
-
-func GenerateAlias(userID, URL string) string {
-	s := fmt.Sprintf("%s%s%d", userID, URL, time.Now().Nanosecond())
-	return fmt.Sprintf("%x", sha1.Sum([]byte(s)))[:8]
+	ID          uint64    `json:"id"`
+	Alias       string    `json:"alias"`
+	OriginalURL string    `json:"original_url"`
+	UserID      string    `json:"user_id"`
+	Private     bool      `json:"private"`
+	LastVisited time.Time `json:"last_visited"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	CreatedAt   time.Time `json:"created_at"`
+	UsageCount  int       `json:"usage_count,omitempty"`
+	Domain      string    `json:"domain,omitempty"`
 }
 
 func MapToTinylink(data map[string]string) (*Tinylink, error) {
@@ -46,38 +32,31 @@ func MapToTinylink(data map[string]string) (*Tinylink, error) {
 		return nil, err
 	}
 	return &Tinylink{
-		Alias: data["alias"],
-		URL:   url.String(),
-		QR: &QR{
-			Data:     []byte(data["qr:data"]),
-			Width:    data["qr:width"],
-			Height:   data["qr:height"],
-			Size:     data["qr:size"],
-			MimeType: data["qr:mimetype"],
-		},
+		Alias:       data["alias"],
+		OriginalURL: url.String(),
 	}, nil
 }
 
 type InsertTinylinkRequest struct {
-	URL    string `json:"url"`
-	Alias  string `json:"alias"`
-	Domain string `json:"domain"`
-	Public bool   `json:"public"`
+	OriginalURL string `json:"original_url"`
+	Alias       string `json:"alias"`
+	Domain      string `json:"domain"`
+	Private     bool   `json:"private"`
 }
 
 func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
-	v.Check(req.URL != "", "url", "must be provided")
-	_, err := url.ParseRequestURI(req.URL)
+	v.Check(req.OriginalURL != "", "url", "must be provided")
+	_, err := url.ParseRequestURI(req.OriginalURL)
 	v.Check(err == nil, "url", "invalid url format")
 	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
 	return v.Valid()
 }
 
 type UpdateTinylinkRequest struct {
-	ID     uint64 `json:"id"`
-	Alias  string `json:"alias"`
-	Public bool   `json:"public"`
-	Domain string `json:"domain"`
+	ID      uint64 `json:"id"`
+	Alias   string `json:"alias"`
+	Private bool   `json:"private"`
+	Domain  string `json:"domain"`
 }
 
 func (req *UpdateTinylinkRequest) IsValid(v *validator.Validator) bool {

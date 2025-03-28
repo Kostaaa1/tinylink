@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/db"
+	"github.com/Kostaaa1/tinylink/internal/data"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/redis/go-redis/v9"
 )
@@ -26,10 +27,15 @@ func NewRedisStore(cfg *config.RedisConfig) *db.RedisStore {
 	}
 
 	return &db.RedisStore{
-		// Tinylink: &RedisTinylinkStore{client: client},
-		Token: &RedisTokenStore{client: client},
+		Tinylink: &RedisTinylinkStore{client: client},
+		Token:    &RedisTokenStore{client: client},
 	}
 }
+
+func (s *RedisTinylinkStore) GetPublic(ctx context.Context, alias string) (*data.Tinylink, error) {
+	return nil, nil
+}
+func (s *RedisTinylinkStore) IncrementUsageCount(ctx context.Context, alias string) error { return nil }
 
 func NewRedisStoreFromClient(client *redis.Client) *db.RedisStore {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)

@@ -29,11 +29,12 @@ func NewTinylinkHandler(tinylinkService *services.TinylinkService, errHandler *E
 func (h *TinylinkHandler) RegisterRoutes(r *mux.Router, authMW func(http.Handler) http.Handler) {
 	protected := r.PathPrefix("").Subrouter()
 	protected.Use(authMW)
-	protected.HandleFunc("/getAll", h.List).Methods("GET")
-	protected.HandleFunc("/tinylink", h.Create).Methods("POST")
 	protected.HandleFunc("/tinylink", h.Update).Methods("PUT")
-	r.HandleFunc("/{alias}", h.Redirect).Methods("GET")
 	protected.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
+	protected.HandleFunc("/tinylink", h.Create).Methods("POST")
+	protected.HandleFunc("/tinylink", h.List).Methods("GET")
+	r.HandleFunc("/{alias}", h.Redirect).Methods("GET")
+	// this should not be protected
 }
 
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +137,7 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Location", tl.URL)
+	w.Header().Set("Location", tl.OriginalURL)
 	w.WriteHeader(http.StatusFound)
 }
 
