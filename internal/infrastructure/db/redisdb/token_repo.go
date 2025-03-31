@@ -6,15 +6,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisTokenStore struct {
+type RedisTokenRepository struct {
 	client *redis.Client
 }
 
-func (s *RedisTokenStore) RevokeAll(ctx context.Context, userID string, scope *data.Scope) error {
+func (s *RedisTokenRepository) RevokeAll(ctx context.Context, userID string, scope *token.Scope) error {
 	tokenKey := fmt.Sprintf("tokens:%s", userID)
 
 	tokens, err := s.client.SMembers(ctx, tokenKey).Result()
@@ -66,7 +67,7 @@ func (s *RedisTokenStore) RevokeAll(ctx context.Context, userID string, scope *d
 // token:51d5kodsDa41 - holds token metadata
 // token:51d5kodsDa41:token_data:
 // token:51d5kodsDa41:tinylinks:
-func (s *RedisTokenStore) Store(ctx context.Context, token *data.Token) error {
+func (s *RedisTokenRepository) Store(ctx context.Context, token *token.Token) error {
 	sessionKey := fmt.Sprintf("token:%s", token.PlainText)
 
 	_, err := s.client.TxPipelined(ctx, func(p redis.Pipeliner) error {
@@ -95,7 +96,7 @@ func (s *RedisTokenStore) Store(ctx context.Context, token *data.Token) error {
 	return err
 }
 
-func (s *RedisTokenStore) Get(ctx context.Context, tokenText string) (*data.Token, error) {
+func (s *RedisTokenRepository) Get(ctx context.Context, tokenText string) (*token.Token, error) {
 	key := fmt.Sprintf("token:%s", tokenText)
 
 	values, err := s.client.HGetAll(ctx, key).Result()
@@ -118,10 +119,10 @@ func (s *RedisTokenStore) Get(ctx context.Context, tokenText string) (*data.Toke
 	v, _ := strconv.Atoi(values["expiry"])
 	expiry := time.Unix(int64(v), 0)
 
-	return &data.Token{
+	return &token.Token{
 		PlainText: tokenText,
 		UserID:    values["user_id"],
-		Scope:     data.GetScope(values["scope"]),
+		Scope:     token.GetScope(values["scope"]),
 		TTL:       ttl,
 		Expiry:    expiry,
 	}, nil

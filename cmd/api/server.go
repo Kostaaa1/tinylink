@@ -13,7 +13,6 @@ import (
 
 // func (app *application) setupRouter() {
 // 	r := mux.NewRouter()
-
 // 	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
 // 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 // redisStore := redisdb.NewRedisStore(&cfg.Redis)
@@ -22,10 +21,8 @@ import (
 // 	limit := ratelimiter.New(app.cfg.Limiter)
 // 	r.Use(middleware.RecoverPanic, limit.Middleware, authMiddleware)
 // 	r.HandleFunc("/health", app.handler.HealthcheckHandler)
-
 // 	app.handler.Tinylink.RegisterRoutes(r)
 // 	app.handler.User.RegisterRoutes(r)
-
 // 	app.router = r
 // }
 

@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/jmoiron/sqlx"
 	"github.com/mattn/go-sqlite3"
 )
 
-type SQLiteTinylinkStore struct {
+type SQLiteTinylinkRepository struct {
 	db *sqlx.DB
 }
 
@@ -41,7 +42,7 @@ func isUniqueConstraintErr(err error) bool {
 	return false
 }
 
-func (s *SQLiteTinylinkStore) Update(ctx context.Context, tl *data.Tinylink) error {
+func (s *SQLiteTinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) error {
 	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ? WHERE id = ? 
 	RETURNING user_id, original_url, usage_count, domain, created_at`
 
@@ -61,7 +62,7 @@ func (s *SQLiteTinylinkStore) Update(ctx context.Context, tl *data.Tinylink) err
 			return data.ErrRecordNotFound
 		}
 		if isUniqueConstraintErr(err) {
-			return data.ErrAliasExists
+			return tinylink.ErrAliasExists
 		}
 		return err
 	}
@@ -69,7 +70,7 @@ func (s *SQLiteTinylinkStore) Update(ctx context.Context, tl *data.Tinylink) err
 	return nil
 }
 
-func (s *SQLiteTinylinkStore) Insert(ctx context.Context, tl *data.Tinylink) error {
+func (s *SQLiteTinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -85,7 +86,7 @@ func (s *SQLiteTinylinkStore) Insert(ctx context.Context, tl *data.Tinylink) err
 	err = tx.QueryRowContext(ctx, query, args...).Scan(&tl.ID, &createdAt)
 	if err != nil {
 		if isUniqueConstraintErr(err) {
-			return data.ErrAliasExists
+			return tinylink.ErrAliasExists
 		}
 
 		tx.Rollback()
@@ -96,7 +97,7 @@ func (s *SQLiteTinylinkStore) Insert(ctx context.Context, tl *data.Tinylink) err
 	return tx.Commit()
 }
 
-func (s *SQLiteTinylinkStore) List(ctx context.Context, userID string) ([]*data.Tinylink, error) {
+func (s *SQLiteTinylinkRepository) List(ctx context.Context, userID string) ([]*tinylink.Tinylink, error) {
 	query := `
 		SELECT 
 			t.id, t.alias, t.original_url, t.user_id, 
@@ -107,7 +108,7 @@ func (s *SQLiteTinylinkStore) List(ctx context.Context, userID string) ([]*data.
 		WHERE t.user_id = ?
 	`
 
-	tinylinks := []*data.Tinylink{}
+	tinylinks := []*tinylink.Tinylink{}
 
 	var links []flatTL
 	if err := s.db.SelectContext(ctx, &links, query, userID); err != nil {
@@ -116,7 +117,7 @@ func (s *SQLiteTinylinkStore) List(ctx context.Context, userID string) ([]*data.
 
 	for _, r := range links {
 		createdAt, _ := time.Parse("2006-01-02 15:04:05", r.CreatedAt)
-		tl := &data.Tinylink{
+		tl := &tinylink.Tinylink{
 			ID:          r.ID,
 			Alias:       r.Alias,
 			UserID:      r.UserID,
@@ -129,7 +130,7 @@ func (s *SQLiteTinylinkStore) List(ctx context.Context, userID string) ([]*data.
 	return tinylinks, nil
 }
 
-func (s *SQLiteTinylinkStore) GetPublic(ctx context.Context, alias string) (*data.Tinylink, error) {
+func (s *SQLiteTinylinkRepository) GetPublic(ctx context.Context, alias string) (*tinylink.Tinylink, error) {
 	query := `
 		SELECT 
 			t.id, t.alias, t.original_url, t.user_id, 
@@ -153,7 +154,7 @@ func (s *SQLiteTinylinkStore) GetPublic(ctx context.Context, alias string) (*dat
 		return nil, fmt.Errorf("failed to parse created_at: %w", err)
 	}
 
-	tl := &data.Tinylink{
+	tl := &tinylink.Tinylink{
 		ID:          r.ID,
 		Alias:       r.Alias,
 		OriginalURL: r.OriginalURL,
@@ -164,7 +165,7 @@ func (s *SQLiteTinylinkStore) GetPublic(ctx context.Context, alias string) (*dat
 	return tl, nil
 }
 
-func (s *SQLiteTinylinkStore) Get(ctx context.Context, userID, alias string) (*data.Tinylink, error) {
+func (s *SQLiteTinylinkRepository) Get(ctx context.Context, userID, alias string) (*tinylink.Tinylink, error) {
 	query := `
 		SELECT 
 			t.id, t.alias, t.original_url, t.user_id, 
@@ -188,7 +189,7 @@ func (s *SQLiteTinylinkStore) Get(ctx context.Context, userID, alias string) (*d
 		return nil, fmt.Errorf("failed to parse created_at: %w", err)
 	}
 
-	tl := &data.Tinylink{
+	tl := &tinylink.Tinylink{
 		ID:          r.ID,
 		Alias:       r.Alias,
 		OriginalURL: r.OriginalURL,
@@ -199,7 +200,7 @@ func (s *SQLiteTinylinkStore) Get(ctx context.Context, userID, alias string) (*d
 	return tl, nil
 }
 
-func (s *SQLiteTinylinkStore) IncrementUsageCount(ctx context.Context, alias string) error {
+func (s *SQLiteTinylinkRepository) IncrementUsageCount(ctx context.Context, alias string) error {
 	query := "UPDATE tinylinks SET usage_count = usage_count + 1 WHERE id = ?"
 
 	res, err := s.db.ExecContext(ctx, query, alias)
@@ -219,7 +220,7 @@ func (s *SQLiteTinylinkStore) IncrementUsageCount(ctx context.Context, alias str
 	return nil
 }
 
-func (s *SQLiteTinylinkStore) Delete(ctx context.Context, userID, alias string) error {
+func (s *SQLiteTinylinkRepository) Delete(ctx context.Context, userID, alias string) error {
 	query := `DELETE FROM tinylinks WHERE user_id = ? AND alias = ?`
 	res, err := s.db.ExecContext(ctx, query, userID, alias)
 	if err != nil {

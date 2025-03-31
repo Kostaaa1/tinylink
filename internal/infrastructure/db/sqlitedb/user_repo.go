@@ -7,30 +7,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/data"
+	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/jmoiron/sqlx"
 )
 
-type SQLiteUserStore struct {
+type SQLiteUserRepository struct {
 	db *sqlx.DB
 }
 
-func (s *SQLiteUserStore) GetByID(ctx context.Context, userID string) (*data.User, error) {
+func (s *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*user.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE id = ?`
 
-	var user data.User
+	var userData user.User
 	var createdAt int64
 
 	err := s.db.QueryRowContext(ctx, query, userID).Scan(
-		&user.ID,
+		&userData.ID,
 		&createdAt,
-		&user.Name,
-		&user.Email,
-		&user.Password.Hash,
-		&user.Activated,
-		&user.Version,
+		&userData.Name,
+		&userData.Email,
+		&userData.Password.Hash,
+		&userData.Activated,
+		&userData.Version,
 	)
-	user.CreatedAt = time.Unix(createdAt, 0)
+	userData.CreatedAt = time.Unix(createdAt, 0)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -39,25 +40,25 @@ func (s *SQLiteUserStore) GetByID(ctx context.Context, userID string) (*data.Use
 		return nil, err
 	}
 
-	return &user, err
+	return &userData, err
 }
 
-func (s *SQLiteUserStore) GetByEmail(ctx context.Context, email string) (*data.User, error) {
+func (s *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE email = ?`
 
-	var user data.User
+	var userData user.User
 	var createdAt int64
 
 	err := s.db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID,
+		&userData.ID,
 		&createdAt,
-		&user.Name,
-		&user.Email,
-		&user.Password.Hash,
-		&user.Activated,
-		&user.Version,
+		&userData.Name,
+		&userData.Email,
+		&userData.Password.Hash,
+		&userData.Activated,
+		&userData.Version,
 	)
-	user.CreatedAt = time.Unix(createdAt, 0)
+	userData.CreatedAt = time.Unix(createdAt, 0)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -66,32 +67,34 @@ func (s *SQLiteUserStore) GetByEmail(ctx context.Context, email string) (*data.U
 		return nil, err
 	}
 
-	return &user, err
+	return &userData, err
 }
 
-func (s *SQLiteUserStore) Insert(ctx context.Context, user *data.User) error {
+func (s *SQLiteUserRepository) Insert(ctx context.Context, userData *user.User) error {
 	query := `INSERT INTO users (name, email, password_hash, activated) 
         VALUES (?, ?, ?, ?)
         RETURNING id, created_at, version`
 
-	args := []interface{}{user.Name, user.Email, user.Password.Hash, user.Activated}
+	args := []interface{}{userData.Name, userData.Email, userData.Password.Hash, userData.Activated}
 
 	row := s.db.QueryRowContext(ctx, query, args...)
 
 	var createdAt int64
-	err := row.Scan(&user.ID, &createdAt, &user.Version)
+
+	err := row.Scan(&userData.ID, &createdAt, &userData.Version)
+
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.emai") {
-			return data.ErrDuplicateEmail
+			return user.ErrDuplicateEmail
 		}
 		return err
 	}
-	user.CreatedAt = time.Unix(createdAt, 0)
+	userData.CreatedAt = time.Unix(createdAt, 0)
 
 	return nil
 }
 
-func (s *SQLiteUserStore) Update(ctx context.Context, user *data.User) error {
+func (s *SQLiteUserRepository) Update(ctx context.Context, user *user.User) error {
 	query := `
         UPDATE users 
         SET name = ?, email = ?, password_hash = ?, activated = ?, version = version + 1 

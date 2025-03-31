@@ -18,7 +18,6 @@ func (h *ErrorHandler) logError(r *http.Request, err error) {
 }
 
 func (h *ErrorHandler) RateLimitExceededResponse(w http.ResponseWriter, r *http.Request, rps float64) {
-	// w.Header().Set("Retry-After", fmt.Sprintf("%d"))
 	h.ErrorResponse(w, r, http.StatusTooManyRequests, "Rate limit exceeded, too many requests!")
 }
 

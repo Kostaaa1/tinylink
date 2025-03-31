@@ -1,4 +1,4 @@
-# Tinylink 
+# Tinylink
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/username/project/actions)
@@ -16,7 +16,7 @@ URL shortener
 ## Goals
 
 # Server
-- DDD architecture 
+- DDD architecture
 - Use redis for auth tokens and TTL data
 - Use sqlite for users and persisted data
 - Implement authentication/authorization
@@ -27,7 +27,7 @@ URL shortener
 - Implement optional 2FA
 - Implement analytics
 
-# Client 
+# Client
 - simple UI (react, htmx or sum)
 - generate QR codes for tinylinks
 
@@ -39,4 +39,16 @@ URL shortener
 
 ** Extra **
 - Analytics - click rate/geolocation/referrer sources/device types...
-- A/B testing ? - Enable users to create multiple versions of a short link to test which one performs better in terms of clicks. ? -->
+- A/B testing ? - Enable users to create multiple versions of a short link to test which one performs better in terms of clicks. ?
+
+
+## What i've learned
+** JWT **
+- compact, self-contained way to represent claims between 2 parties securely. Mainly used for authn and authz in stateless systems.
+- structure - HEADER.PAYLOAD.SIGNATURE
+	- HEADER - Defines algorithm used for signing
+	- PAYLOAD - Contains user data (claims)
+	- SIGNATURE - Secret key for ensuring integrity
+
+
+- -->

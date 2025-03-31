@@ -4,22 +4,23 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/data"
-	"github.com/Kostaaa1/tinylink/internal/middleware/auth"
-	"github.com/Kostaaa1/tinylink/internal/services"
-	"github.com/Kostaaa1/tinylink/internal/validator"
+	"github.com/Kostaaa1/tinylink/internal/common/auth"
+	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/Kostaaa1/tinylink/internal/common/validator"
+	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/gorilla/mux"
 )
 
 type TinylinkHandler struct {
 	*ErrorHandler
-	service *services.TinylinkService
+	service *tinylink.Service
 }
 
-func NewTinylinkHandler(tinylinkService *services.TinylinkService, errHandler *ErrorHandler) *TinylinkHandler {
+func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler *ErrorHandler) *TinylinkHandler {
 	return &TinylinkHandler{
 		ErrorHandler: errHandler,
 		service:      tinylinkService,
@@ -55,8 +56,22 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type UpdateTinylinkRequest struct {
+	ID      uint64 `json:"id"`
+	Alias   string `json:"alias"`
+	Private bool   `json:"private"`
+	Domain  string `json:"domain"`
+}
+
+func (req *UpdateTinylinkRequest) IsValid(v *validator.Validator) bool {
+	v.Check(req.ID != 0, "id", "must be provided")
+	v.Check(req.Alias != "", "alias", "must be provided")
+	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
+	return v.Valid()
+}
+
 func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var req data.UpdateTinylinkRequest
+	var req UpdateTinylinkRequest
 	if err := readJSON(r, &req); err != nil {
 		h.BadRequestResponse(w, r, err)
 		return
@@ -71,14 +86,14 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	tl, err := h.service.Update(ctx, req)
+	tl, err := h.service.Update(ctx, req.ID, req.Alias, req.Domain, req.Private)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
 			h.NotFoundResponse(w, r)
-		case errors.Is(err, data.ErrURLExists):
+		case errors.Is(err, tinylink.ErrURLExists):
 			h.ErrorResponse(w, r, http.StatusConflict, err.Error())
-		case errors.Is(err, data.ErrAliasExists):
+		case errors.Is(err, tinylink.ErrAliasExists):
 			h.ErrorResponse(w, r, http.StatusConflict, err.Error())
 		default:
 			h.ServerErrorResponse(w, r, err)
@@ -91,8 +106,23 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type InsertTinylinkRequest struct {
+	OriginalURL string `json:"original_url"`
+	Alias       string `json:"alias"`
+	Domain      string `json:"domain"`
+	Private     bool   `json:"private"`
+}
+
+func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
+	v.Check(req.OriginalURL != "", "url", "must be provided")
+	_, err := url.ParseRequestURI(req.OriginalURL)
+	v.Check(err == nil, "url", "invalid url format")
+	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
+	return v.Valid()
+}
+
 func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req data.InsertTinylinkRequest
+	var req InsertTinylinkRequest
 	if err := readJSON(r, &req); err != nil {
 		h.BadRequestResponse(w, r, err)
 		return
@@ -107,12 +137,12 @@ func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	tl, err := h.service.Insert(ctx, req)
+	tl, err := h.service.Insert(ctx, req.Alias, req.OriginalURL, req.Domain, req.Private)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrURLExists):
+		case errors.Is(err, tinylink.ErrURLExists):
 			h.ErrorResponse(w, r, http.StatusConflict, err.Error())
-		case errors.Is(err, data.ErrAliasExists):
+		case errors.Is(err, tinylink.ErrAliasExists):
 			h.ErrorResponse(w, r, http.StatusConflict, err.Error())
 		default:
 			h.ServerErrorResponse(w, r, err)

@@ -1,11 +1,11 @@
-package data
+package user
 
 import (
 	"errors"
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/validator"
+	"github.com/Kostaaa1/tinylink/internal/common/validator"
 	"golang.org/x/crypto/bcrypt"
 )
 

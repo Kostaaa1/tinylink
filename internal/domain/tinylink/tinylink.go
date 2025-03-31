@@ -1,11 +1,11 @@
-package data
+package tinylink
 
 import (
 	"errors"
 	"net/url"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/validator"
+	"github.com/Kostaaa1/tinylink/internal/common/validator"
 )
 
 var (
