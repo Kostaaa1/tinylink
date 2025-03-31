@@ -3,3 +3,5 @@ NOTES.md
 *.db
 *.sqlx
 *.pem
+private.pem
+public.pem
