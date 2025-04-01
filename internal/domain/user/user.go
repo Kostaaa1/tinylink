@@ -14,6 +14,16 @@ var (
 	ErrInvalidCredentials = errors.New("passwords")
 )
 
+type GoogleUser struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+}
+
 type User struct {
 	ID        uint64    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`

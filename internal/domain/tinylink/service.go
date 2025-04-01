@@ -8,12 +8,12 @@ import (
 )
 
 type Service struct {
-	Primary SQLiteRepository
+	Primary DBRepository
 	Cache   RedisRepository
 	Token   token.Repository
 }
 
-func NewService(primary SQLiteRepository, cache RedisRepository, token token.Repository) *Service {
+func NewService(primary DBRepository, cache RedisRepository, token token.Repository) *Service {
 	return &Service{
 		Primary: primary,
 		Cache:   cache,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -12,11 +11,11 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type SQLiteUserRepository struct {
+type UserRepository struct {
 	db *sqlx.DB
 }
 
-func (s *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*user.User, error) {
+func (s *UserRepository) GetByID(ctx context.Context, userID string) (*user.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE id = ?`
 
 	var userData user.User
@@ -43,7 +42,7 @@ func (s *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*use
 	return &userData, err
 }
 
-func (s *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+func (s *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	query := `SELECT id, created_at, name, email, password_hash, activated, version FROM users WHERE email = ?`
 
 	var userData user.User
@@ -70,7 +69,7 @@ func (s *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*u
 	return &userData, err
 }
 
-func (s *SQLiteUserRepository) Insert(ctx context.Context, userData *user.User) error {
+func (s *UserRepository) Insert(ctx context.Context, userData *user.User) error {
 	query := `INSERT INTO users (name, email, password_hash, activated) 
         VALUES (?, ?, ?, ?)
         RETURNING id, created_at, version`
@@ -84,7 +83,7 @@ func (s *SQLiteUserRepository) Insert(ctx context.Context, userData *user.User) 
 	err := row.Scan(&userData.ID, &createdAt, &userData.Version)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.emai") {
+		if isUniqueConstraintErr(err) {
 			return user.ErrDuplicateEmail
 		}
 		return err
@@ -94,7 +93,7 @@ func (s *SQLiteUserRepository) Insert(ctx context.Context, userData *user.User) 
 	return nil
 }
 
-func (s *SQLiteUserRepository) Update(ctx context.Context, user *user.User) error {
+func (s *UserRepository) Update(ctx context.Context, user *user.User) error {
 	query := `
         UPDATE users 
         SET name = ?, email = ?, password_hash = ?, activated = ?, version = version + 1 

@@ -4,8 +4,16 @@ import (
 	"flag"
 	"io"
 	"log/slog"
+	"net/http"
+	"os"
 
+	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
+	"github.com/Kostaaa1/tinylink/internal/domain/user"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/redisdb"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/handler"
+	"github.com/Kostaaa1/tinylink/internal/middleware"
+	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -39,62 +47,56 @@ func setupLogger(w io.Writer, cfg *config.Config) *slog.Logger {
 
 func main() {
 	var cfg config.Config
-	flag.StringVar(&cfg.Port, "port", "3000", "Server address port")
-	flag.StringVar(&cfg.Env, "env", "development", "Environment (development|staging|production)")
-	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "Rate limiter requests-per-second")
-	flag.IntVar(&cfg.Limiter.Burst, "limiter-burst", 4, "Rate limiter maximum burst")
-	flag.BoolVar(&cfg.Limiter.Enabled, "limiter-enabled", true, "Enable rate limiter")
-	flag.StringVar(&cfg.SQLitePath, "sqlite-db-path", "tinylink.db", "Path to the SQLite database")
-	flag.BoolVar(&cfg.Redis.Enabled, "redis-enabled", false, "Enable redis")
-	flag.StringVar(&cfg.Redis.Addr, "redis-addr", "localhost:6379", "Redis server address")
-	flag.StringVar(&cfg.Redis.Password, "redis-password", "", "Redis password")
-	flag.IntVar(&cfg.Redis.DB, "redis-db", 0, "Redis database number")
-	flag.IntVar(&cfg.Redis.PoolSize, "redis-pool-size", 10, "Redis connection pool size")
+
+	flag.StringVar(&cfg.Port, "port", "3000", "server address port")
+	flag.StringVar(&cfg.Env, "env", "development", "environment (development|staging|production)")
+	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "rate limiter requests-per-second")
+	flag.IntVar(&cfg.Limiter.Burst, "limiter-burst", 4, "rate limiter maximum burst")
+	flag.BoolVar(&cfg.Limiter.Enabled, "limiter-enabled", true, "enable rate limiter")
+	flag.StringVar(&cfg.SQLitePath, "sqlite-db-path", "tinylink.db", "path to the sqlite database")
+	flag.BoolVar(&cfg.Redis.Enabled, "redis-enabled", false, "enable redis")
+	flag.StringVar(&cfg.Redis.Addr, "redis-addr", "localhost:6379", "redis server address")
+	flag.StringVar(&cfg.Redis.Password, "redis-password", "", "redis password")
+	flag.IntVar(&cfg.Redis.DB, "redis-db", 0, "redis database number")
+	flag.IntVar(&cfg.Redis.PoolSize, "redis-pool-size", 10, "redis connection pool size")
+
 	flag.Parse()
 
-	// logger := setupLogger(os.Stdout, &cfg)
+	logger := setupLogger(os.Stdout, &cfg)
 
-	// // make regitry for stores
-	// sqliteStore := sqlitedb.NewSQLiteStore(cfg.SQLitePath)
-	// redisStore := redisdb.NewRedisStore(&cfg.Redis)
-	// userService := services.NewUserService(
-	// 	sqliteStore.User,
-	// 	redisStore.Token,
-	// )
-	// tinylinkService := services.NewTinylinkService(
-	// 	sqliteStore.Tinylink,
-	// 	redisStore.Tinylink,
-	// 	redisStore.Token,
-	// )
+	redisRepo := redisdb.NewRepositories(&cfg.Redis)
+	sqliteRepo := sqlitedb.NewRepositories(cfg.SQLitePath)
 
-	// errHandler := handler.NewErrorHandler(logger)
-	// tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
-	// userHandler := handler.NewUserHandler(userService, errHandler)
+	tlService := tinylink.NewService(sqliteRepo.Tinylink, redisRepo.Tinylink, redisRepo.Token)
+	userService := user.NewService(sqliteRepo.User, redisRepo.Token)
 
-	// app := application{
-	// 	cfg:    &cfg,
-	// 	logger: logger,
-	// 	handler: &handler.Handler{
-	// 		ErrorHandler: errHandler,
-	// 		Tinylink:     tinylinkHandler,
-	// 		User:         userHandler,
-	// 	},
-	// }
+	errHandler := handler.NewErrorHandler(logger)
+	tinylinkHandler := handler.NewTinylinkHandler(tlService, errHandler)
+	userHandler := handler.NewUserHandler(userService, errHandler)
 
-	// r := mux.NewRouter()
-	// r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
-	// r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
+	app := application{
+		cfg:    &cfg,
+		logger: logger,
+		handler: &handler.Handler{
+			ErrorHandler: errHandler,
+			Tinylink:     tinylinkHandler,
+			User:         userHandler,
+		},
+	}
 
-	// limit := ratelimiter.New(app.cfg.Limiter)
+	r := mux.NewRouter()
+	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
+	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
+	limit := ratelimiter.New(app.cfg.Limiter)
 	// authMW := auth.Middleware(redisStore.Token, sqliteStore.User)
-	// r.Use(middleware.RecoverPanic, limit.Middleware)
+	r.Use(middleware.RecoverPanic, limit.Middleware)
 
-	// app.handler.User.RegisterRoutes(r)
-	// app.handler.Tinylink.RegisterRoutes(r, authMW)
-	// app.router = r
+	// app.handler.Tinylink.RegisterRoutes(r, nil)
+	app.handler.User.RegisterRoutes(r)
+	app.router = r
 
-	// if err := app.serve(); err != nil {
-	// 	logger.Error("app.serve()", "error", err)
-	// }
+	if err := app.serve(); err != nil {
+		logger.Error("app.serve()", "error", err)
+	}
 }

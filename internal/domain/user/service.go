@@ -18,21 +18,31 @@ func NewService(userRepo Repository, tokenRepo token.Repository) *Service {
 	}
 }
 
+func (s *Service) FindOrCreate(ctx context.Context, user *User) (*User, error) {
+	user, err := s.User.GetByEmail(ctx, user.Email)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		if err := s.User.Insert(ctx, user); err != nil {
+			return nil, err
+		}
+	}
+	return user, nil
+}
+
 func (s *Service) Login(ctx context.Context, email, password string) (*User, error) {
 	userData, err := s.User.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
-
 	matches, err := userData.Password.Matches(password)
 	if err != nil {
 		return nil, err
 	}
-
 	if !matches {
 		return nil, ErrInvalidCredentials
 	}
-
 	return userData, err
 }
 

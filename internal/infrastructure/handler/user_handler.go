@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -12,7 +12,7 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/common/validator"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
-	"github.com/coreos/go-oidc"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -35,58 +35,56 @@ func (h *UserHandler) RegisterRoutes(r *mux.Router) {
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		RedirectURL:  os.Getenv("GOOGLE_CALLBACK_URL"),
-		Scopes:       []string{"openid", "profile", "email"},
+		Scopes:       []string{"profile", "email"},
 		Endpoint:     google.Endpoint,
 	}
 
-	oidcProvider, err := oidc.NewProvider(context.Background(), "https://accounts.google.com")
-	if err != nil {
-		log.Fatalf("Failed to get provider: %v", err)
-	}
-
-	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		url := oauth2Config.AuthCodeURL("random-state", oauth2.AccessTypeOffline)
-		http.Redirect(w, r, url, http.StatusFound)
+	r.HandleFunc("/login/google", func(w http.ResponseWriter, r *http.Request) {
+		url := oauth2Config.AuthCodeURL("random-state", oauth2.AccessTypeOnline)
+		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	})
 
-	r.HandleFunc(os.Getenv("GOOGLE_CALLBACK_URL"), func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		code := r.URL.Query().Get("code")
 
 		token, err := oauth2Config.Exchange(ctx, code)
 		if err != nil {
-			http.Error(w, "Failed to exchange token", http.StatusInternalServerError)
+			h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 			return
 		}
 
-		// Verify ID token
-		verifier := oidcProvider.Verifier(&oidc.Config{ClientID: oauth2Config.ClientID})
-		idToken, err := verifier.Verify(ctx, token.Extra("id_token").(string))
+		client := oauth2Config.Client(ctx, token)
+		resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 		if err != nil {
-			http.Error(w, "Failed to verify ID token", http.StatusInternalServerError)
+			h.BadRequestResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
+			return
+		}
+		defer resp.Body.Close()
+
+		var googleUser user.GoogleUser
+		err = json.NewDecoder(resp.Body).Decode(&googleUser)
+		if err != nil {
+			h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 			return
 		}
 
-		// Get user info
-		var userInfo struct {
-			Email string `json:"email"`
-			Name  string `json:"name"`
-		}
-		if err := idToken.Claims(&userInfo); err != nil {
-			http.Error(w, "Failed to parse claims", http.StatusInternalServerError)
-			return
-		}
+		// TODO: should create if not exists user from google user data
 
-		// Return user info
+		jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
+			"email": googleUser.Email,
+			"name":  googleUser.FamilyName,
+			"exp":   time.Now().Add(24 * time.Hour),
+		})
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(userInfo)
+		writeJSON(w, http.StatusOK, envelope{"user": googleUser}, nil)
 	})
 
 	////////////////////////////////////////////////////////////////////////////////////////////////
-
-	// userRoutes := r.PathPrefix("/users").Subrouter()
-	// userRoutes.HandleFunc("/register", h.Register).Methods("POST")
-	// userRoutes.HandleFunc("/login", h.Login).Methods("POST")
+	userRoutes := r.PathPrefix("/users").Subrouter()
+	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
+	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
 }
 
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +123,6 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// get token or generate and return it...
-
 	if err := writeJSON(w, http.StatusOK, envelope{"user": userData}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}

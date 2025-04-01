@@ -17,7 +17,7 @@ type RedisRepository interface {
 	GenerateAlias(ctx context.Context, n int) (string, error)
 }
 
-type SQLiteRepository interface {
+type DBRepository interface {
 	Repository
 	IncrementUsageCount(ctx context.Context, alias string) error
 	GetPublic(ctx context.Context, alias string) (*Tinylink, error)

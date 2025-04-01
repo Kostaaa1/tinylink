@@ -11,11 +11,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-type RedisTokenRepository struct {
+type TokenRepository struct {
 	client *redis.Client
 }
 
-func (s *RedisTokenRepository) RevokeAll(ctx context.Context, userID string, scope *token.Scope) error {
+func (s *TokenRepository) RevokeAll(ctx context.Context, userID string, scope *token.Scope) error {
 	tokenKey := fmt.Sprintf("tokens:%s", userID)
 
 	tokens, err := s.client.SMembers(ctx, tokenKey).Result()
@@ -67,7 +67,7 @@ func (s *RedisTokenRepository) RevokeAll(ctx context.Context, userID string, sco
 // token:51d5kodsDa41 - holds token metadata
 // token:51d5kodsDa41:token_data:
 // token:51d5kodsDa41:tinylinks:
-func (s *RedisTokenRepository) Store(ctx context.Context, token *token.Token) error {
+func (s *TokenRepository) Store(ctx context.Context, token *token.Token) error {
 	sessionKey := fmt.Sprintf("token:%s", token.PlainText)
 
 	_, err := s.client.TxPipelined(ctx, func(p redis.Pipeliner) error {
@@ -96,7 +96,7 @@ func (s *RedisTokenRepository) Store(ctx context.Context, token *token.Token) er
 	return err
 }
 
-func (s *RedisTokenRepository) Get(ctx context.Context, tokenText string) (*token.Token, error) {
+func (s *TokenRepository) Get(ctx context.Context, tokenText string) (*token.Token, error) {
 	key := fmt.Sprintf("token:%s", tokenText)
 
 	values, err := s.client.HGetAll(ctx, key).Result()

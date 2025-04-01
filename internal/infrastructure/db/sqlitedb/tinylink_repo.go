@@ -13,7 +13,7 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-type SQLiteTinylinkRepository struct {
+type TinylinkRepository struct {
 	db *sqlx.DB
 }
 
@@ -42,7 +42,7 @@ func isUniqueConstraintErr(err error) bool {
 	return false
 }
 
-func (s *SQLiteTinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) error {
+func (s *TinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) error {
 	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ? WHERE id = ? 
 	RETURNING user_id, original_url, usage_count, domain, created_at`
 
@@ -70,7 +70,7 @@ func (s *SQLiteTinylinkRepository) Update(ctx context.Context, tl *tinylink.Tiny
 	return nil
 }
 
-func (s *SQLiteTinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) error {
+func (s *TinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -97,7 +97,7 @@ func (s *SQLiteTinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tiny
 	return tx.Commit()
 }
 
-func (s *SQLiteTinylinkRepository) List(ctx context.Context, userID string) ([]*tinylink.Tinylink, error) {
+func (s *TinylinkRepository) List(ctx context.Context, userID string) ([]*tinylink.Tinylink, error) {
 	query := `
 		SELECT 
 			t.id, t.alias, t.original_url, t.user_id, 
@@ -130,7 +130,7 @@ func (s *SQLiteTinylinkRepository) List(ctx context.Context, userID string) ([]*
 	return tinylinks, nil
 }
 
-func (s *SQLiteTinylinkRepository) GetPublic(ctx context.Context, alias string) (*tinylink.Tinylink, error) {
+func (s *TinylinkRepository) GetPublic(ctx context.Context, alias string) (*tinylink.Tinylink, error) {
 	query := `
 		SELECT 
 			t.id, t.alias, t.original_url, t.user_id, 
@@ -165,7 +165,7 @@ func (s *SQLiteTinylinkRepository) GetPublic(ctx context.Context, alias string) 
 	return tl, nil
 }
 
-func (s *SQLiteTinylinkRepository) Get(ctx context.Context, userID, alias string) (*tinylink.Tinylink, error) {
+func (s *TinylinkRepository) Get(ctx context.Context, userID, alias string) (*tinylink.Tinylink, error) {
 	query := `
 		SELECT 
 			t.id, t.alias, t.original_url, t.user_id, 
@@ -200,7 +200,7 @@ func (s *SQLiteTinylinkRepository) Get(ctx context.Context, userID, alias string
 	return tl, nil
 }
 
-func (s *SQLiteTinylinkRepository) IncrementUsageCount(ctx context.Context, alias string) error {
+func (s *TinylinkRepository) IncrementUsageCount(ctx context.Context, alias string) error {
 	query := "UPDATE tinylinks SET usage_count = usage_count + 1 WHERE id = ?"
 
 	res, err := s.db.ExecContext(ctx, query, alias)
@@ -220,7 +220,7 @@ func (s *SQLiteTinylinkRepository) IncrementUsageCount(ctx context.Context, alia
 	return nil
 }
 
-func (s *SQLiteTinylinkRepository) Delete(ctx context.Context, userID, alias string) error {
+func (s *TinylinkRepository) Delete(ctx context.Context, userID, alias string) error {
 	query := `DELETE FROM tinylinks WHERE user_id = ? AND alias = ?`
 	res, err := s.db.ExecContext(ctx, query, userID, alias)
 	if err != nil {
