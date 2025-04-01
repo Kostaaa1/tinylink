@@ -8,24 +8,24 @@ import (
 )
 
 type Service struct {
-	Primary DBRepository
-	Cache   RedisRepository
-	Token   token.Repository
+	primary DBRepository
+	cache   RedisRepository
+	token   token.Repository
 }
 
 func NewService(primary DBRepository, cache RedisRepository, token token.Repository) *Service {
 	return &Service{
-		Primary: primary,
-		Cache:   cache,
-		Token:   token,
+		primary: primary,
+		cache:   cache,
+		token:   token,
 	}
 }
 
 func (s *Service) getStore(ctx context.Context) Repository {
 	if auth.IsAuthenticated(ctx) {
-		return s.Primary
+		return s.primary
 	}
-	return s.Cache
+	return s.cache
 }
 
 func (s *Service) List(ctx context.Context, userID string) ([]*Tinylink, error) {
@@ -70,7 +70,7 @@ func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 
 	if userID == "" {
 		// getPublic should work only for sqlite
-		tl, err := s.Primary.GetPublic(ctx, alias)
+		tl, err := s.primary.GetPublic(ctx, alias)
 		if err != nil {
 			return nil, err
 		}
@@ -82,7 +82,7 @@ func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 		return nil, err
 	}
 
-	if err := s.Primary.IncrementUsageCount(ctx, alias); err != nil {
+	if err := s.primary.IncrementUsageCount(ctx, alias); err != nil {
 		return nil, err
 	}
 

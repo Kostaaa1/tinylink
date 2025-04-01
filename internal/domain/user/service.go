@@ -2,37 +2,42 @@ package user
 
 import (
 	"context"
+	"errors"
 
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 )
 
 type Service struct {
-	User  Repository
-	Token token.Repository
+	user  Repository
+	token token.Repository
 }
 
 func NewService(userRepo Repository, tokenRepo token.Repository) *Service {
 	return &Service{
-		User:  userRepo,
-		Token: tokenRepo,
+		user:  userRepo,
+		token: tokenRepo,
 	}
 }
 
 func (s *Service) FindOrCreate(ctx context.Context, user *User) (*User, error) {
-	user, err := s.User.GetByEmail(ctx, user.Email)
+	newUser, err := s.user.GetByEmail(ctx, user.Email)
 	if err != nil {
-		return nil, err
-	}
-	if user == nil {
-		if err := s.User.Insert(ctx, user); err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			if err := s.user.Insert(ctx, user); err != nil {
+				return nil, err
+			}
+			return user, nil
+		default:
 			return nil, err
 		}
 	}
-	return user, nil
+	return newUser, nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (*User, error) {
-	userData, err := s.User.GetByEmail(ctx, email)
+	userData, err := s.user.GetByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
@@ -47,5 +52,5 @@ func (s *Service) Login(ctx context.Context, email, password string) (*User, err
 }
 
 func (s *Service) Register(ctx context.Context, user *User) error {
-	return s.User.Insert(ctx, user)
+	return s.user.Insert(ctx, user)
 }

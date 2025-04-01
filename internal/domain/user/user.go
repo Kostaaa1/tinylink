@@ -25,13 +25,14 @@ type GoogleUser struct {
 }
 
 type User struct {
-	ID        uint64    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Password  password  `json:"-"`
-	Activated bool      `json:"activated"`
-	Version   int       `json:"-"`
+	ID         uint64     `json:"id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	Name       string     `json:"name"`
+	Email      string     `json:"email"`
+	Password   password   `json:"-"`
+	Activated  bool       `json:"activated"`
+	Version    int        `json:"-"`
+	GoogleData GoogleUser `json:"-"`
 }
 
 type password struct {

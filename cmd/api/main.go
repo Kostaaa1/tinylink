@@ -13,6 +13,7 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/handler"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
+	loggermw "github.com/Kostaaa1/tinylink/internal/middleware/logger"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/gorilla/mux"
@@ -90,7 +91,7 @@ func main() {
 
 	limit := ratelimiter.New(app.cfg.Limiter)
 	// authMW := auth.Middleware(redisStore.Token, sqliteStore.User)
-	r.Use(middleware.RecoverPanic, limit.Middleware)
+	r.Use(middleware.RecoverPanic, limit.Middleware, loggermw.Middleware)
 
 	// app.handler.Tinylink.RegisterRoutes(r, nil)
 	app.handler.User.RegisterRoutes(r)

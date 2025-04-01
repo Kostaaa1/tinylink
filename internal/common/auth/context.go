@@ -12,8 +12,8 @@ type contextKey string
 var (
 	SessionKey                     = "tinylink_session"
 	userContextKey      contextKey = "user"
-	authTokenContextKey contextKey = "auth"
-	tempTokenContextKey contextKey = "temp_auth"
+	authTokenContextKey contextKey = "token"
+	tempTokenContextKey contextKey = "temp_token"
 )
 
 func TokenFromCtx(ctx context.Context) *token.Token {

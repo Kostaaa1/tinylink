@@ -70,11 +70,11 @@ func (s *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 }
 
 func (s *UserRepository) Insert(ctx context.Context, userData *user.User) error {
-	query := `INSERT INTO users (name, email, password_hash, activated) 
-        VALUES (?, ?, ?, ?)
+	query := `INSERT INTO users (name, email, password_hash) 
+        VALUES (?, ?, ?)
         RETURNING id, created_at, version`
 
-	args := []interface{}{userData.Name, userData.Email, userData.Password.Hash, userData.Activated}
+	args := []interface{}{userData.Name, userData.Email, userData.Password.Hash}
 
 	row := s.db.QueryRowContext(ctx, query, args...)
 
