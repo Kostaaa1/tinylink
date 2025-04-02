@@ -27,9 +27,9 @@ func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler *ErrorHand
 	}
 }
 
-func (h *TinylinkHandler) RegisterRoutes(r *mux.Router, authMW func(http.Handler) http.Handler) {
+func (h *TinylinkHandler) RegisterRoutes(r *mux.Router) {
 	protected := r.PathPrefix("").Subrouter()
-	protected.Use(authMW)
+	protected.Use(auth.Middleware)
 	protected.HandleFunc("/tinylink", h.Update).Methods("PUT")
 	protected.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 	protected.HandleFunc("/tinylink", h.Create).Methods("POST")
@@ -42,10 +42,12 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	user := auth.UserFromCtx(ctx)
-	userID := user.GetID()
+	// user := auth.UserFromCtx(ctx)
+	// userID := user.GetID()
 
-	links, err := h.service.List(ctx, userID)
+	claims := auth.ClaimsFromCtx(ctx)
+
+	links, err := h.service.List(ctx, claims.UserID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -172,28 +174,28 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
+	// ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	// defer cancel()
 
-	user := auth.UserFromCtx(ctx)
-	userId := user.GetID()
-	if userId == "" {
-		h.UnauthorizedResponse(w, r)
-		return
-	}
+	// user := auth.UserFromCtx(ctx)
+	// userId := user.GetID()
+	// if userId == "" {
+	// 	h.UnauthorizedResponse(w, r)
+	// 	return
+	// }
 
-	alias := mux.Vars(r)["alias"]
-	if err := h.service.Delete(r.Context(), userId, alias); err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			h.NotFoundResponse(w, r)
-		default:
-			h.ServerErrorResponse(w, r, err)
-		}
-		return
-	}
+	// alias := mux.Vars(r)["alias"]
+	// if err := h.service.Delete(r.Context(), userId, alias); err != nil {
+	// 	switch {
+	// 	case errors.Is(err, data.ErrRecordNotFound):
+	// 		h.NotFoundResponse(w, r)
+	// 	default:
+	// 		h.ServerErrorResponse(w, r, err)
+	// 	}
+	// 	return
+	// }
 
-	if err := writeJSON(w, http.StatusOK, envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
-		h.ServerErrorResponse(w, r, err)
-	}
+	// if err := writeJSON(w, http.StatusOK, envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
+	// 	h.ServerErrorResponse(w, r, err)
+	// }
 }

@@ -20,39 +20,37 @@ import (
 
 type UserHandler struct {
 	*ErrorHandler
-	service *user.Service
+	service      *user.Service
+	oauth2Config *oauth2.Config
 }
 
-var (
-	oauth2Config *oauth2.Config
-)
+var ()
 
 func NewUserHandler(userService *user.Service, errHandler *ErrorHandler) *UserHandler {
 	return &UserHandler{
 		ErrorHandler: errHandler,
 		service:      userService,
+		oauth2Config: &oauth2.Config{
+			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+			RedirectURL:  os.Getenv("GOOGLE_CALLBACK_URL"),
+			Scopes:       []string{"profile", "email"},
+			Endpoint:     google.Endpoint,
+		},
 	}
 }
 
 func (h *UserHandler) RegisterRoutes(r *mux.Router) {
-	oauth2Config = &oauth2.Config{
-		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("GOOGLE_CALLBACK_URL"),
-		Scopes:       []string{"profile", "email"},
-		Endpoint:     google.Endpoint,
-	}
-
 	r.HandleFunc("/login/google", h.HandleGoogleRedirect)
 	r.HandleFunc("/auth/google/callback", h.HandleGoogleCallback)
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	userRoutes := r.PathPrefix("/users").Subrouter()
+	//////////////////////////////////////////////////////////////////////////////////////////
+	userRoutes := r.PathPrefix("/user").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
 	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
 }
 
 func (h *UserHandler) HandleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
-	url := oauth2Config.AuthCodeURL("random-state", oauth2.AccessTypeOnline)
+	url := h.oauth2Config.AuthCodeURL("random-state", oauth2.AccessTypeOnline)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -60,13 +58,15 @@ func (h *UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Reques
 	ctx := context.Background()
 	code := r.URL.Query().Get("code")
 
-	token, err := oauth2Config.Exchange(ctx, code)
+	// handle csrf attacks
+
+	token, err := h.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 		return
 	}
 
-	client := oauth2Config.Client(ctx, token)
+	client := h.oauth2Config.Client(ctx, token)
 
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
@@ -75,23 +75,32 @@ func (h *UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Reques
 	}
 	defer resp.Body.Close()
 
-	var user user.User
-	err = json.NewDecoder(resp.Body).Decode(&user.GoogleData)
+	var googleUser user.GoogleUser
+	err = json.NewDecoder(resp.Body).Decode(&googleUser)
 	if err != nil {
 		h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 		return
 	}
 
-	user.Email = user.GoogleData.Email
-	user.Name = user.GoogleData.GivenName
+	user := user.User{
+		Email:  googleUser.Email,
+		Name:   googleUser.Name,
+		Google: &googleUser,
+	}
 
-	// TODO: should create if not exists user from google user data
-	if _, err := h.service.FindOrCreate(ctx, &user); err != nil {
+	storeUser, err := h.service.FindOrCreate(ctx, &user)
+	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	jwtToken, err := auth.GenerateJWT(user.Email, user.Name)
+	// TODO: should create if not exists user from google user data
+	// google - upon login - check if users table have the provided email - if it does, then automatically link 2 accounts.
+	// normal - registration - prompt them for credentials, if google_users has that email link it automatically
+	// normal - login - if not found, check if there is an email in google_users, if exists prompt them to add password and create row in users table
+	// linking process - if not exists, insert row in users/google_users table and save user_id in google_users
+
+	jwtToken, err := auth.GenerateJWT(storeUser.ID, storeUser.Email)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -137,8 +146,13 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// get token or generate and return it...
-	if err := writeJSON(w, http.StatusOK, envelope{"user": userData}, nil); err != nil {
+	token, err := auth.GenerateJWT(userData.ID, userData.Email)
+	if err != nil {
+		h.ServerErrorResponse(w, r, err)
+		return
+	}
+
+	if err := writeJSON(w, http.StatusOK, envelope{"user": userData, "token": token}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -156,9 +170,8 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userData := &user.User{
-		Name:      input.Name,
-		Email:     input.Email,
-		Activated: false,
+		Name:  input.Name,
+		Email: input.Email,
 	}
 
 	err := userData.Password.Set(input.Password)
@@ -180,8 +193,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrDuplicateEmail):
-			v.AddError("email", "user already exists with this email address.")
-			h.FailedValidationResponse(w, r, v.Errors)
+			h.ErrorResponse(w, r, http.StatusConflict, "user already exists with this email address")
 		default:
 			h.ServerErrorResponse(w, r, err)
 		}

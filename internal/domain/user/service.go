@@ -3,7 +3,9 @@ package user
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/Kostaaa1/tinylink/internal/common/auth"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 )
@@ -18,6 +20,11 @@ func NewService(userRepo Repository, tokenRepo token.Repository) *Service {
 		user:  userRepo,
 		token: tokenRepo,
 	}
+}
+
+func (s *Service) GetUserFromCtx(ctx context.Context) (*User, error) {
+	claims := auth.ClaimsFromCtx(ctx)
+	return s.user.GetByEmail(ctx, claims.Email)
 }
 
 func (s *Service) FindOrCreate(ctx context.Context, user *User) (*User, error) {
@@ -36,6 +43,23 @@ func (s *Service) FindOrCreate(ctx context.Context, user *User) (*User, error) {
 	return newUser, nil
 }
 
+func (s *Service) Register(ctx context.Context, user *User) error {
+	newUser, err := s.user.GetByEmail(ctx, user.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			return s.user.Insert(ctx, user)
+		default:
+			return err
+		}
+	}
+	if newUser != nil {
+		fmt.Println("updating user")
+		return s.user.Update(ctx, user)
+	}
+	return nil
+}
+
 func (s *Service) Login(ctx context.Context, email, password string) (*User, error) {
 	userData, err := s.user.GetByEmail(ctx, email)
 	if err != nil {
@@ -49,8 +73,4 @@ func (s *Service) Login(ctx context.Context, email, password string) (*User, err
 		return nil, ErrInvalidCredentials
 	}
 	return userData, err
-}
-
-func (s *Service) Register(ctx context.Context, user *User) error {
-	return s.user.Insert(ctx, user)
 }

@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,15 +14,16 @@ var (
 )
 
 type Claims struct {
-	Email string
-	Name  string
+	UserID string
+	Email  string
 	jwt.RegisteredClaims
 }
 
-func GenerateJWT(email, name string) (string, error) {
+func GenerateJWT(id uint64, email string) (string, error) {
+	userID := strconv.FormatUint(id, 10)
 	claims := &Claims{
-		Email: email,
-		Name:  name,
+		UserID: userID,
+		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

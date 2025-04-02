@@ -15,24 +15,25 @@ var (
 )
 
 type GoogleUser struct {
-	ID            string `json:"id"`
-	Email         string `json:"email"`
-	VerifiedEmail bool   `json:"verified_email"`
-	Name          string `json:"name"`
-	GivenName     string `json:"given_name"`
-	FamilyName    string `json:"family_name"`
-	Picture       string `json:"picture"`
+	UserID        uint64    `json:"-"`
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	VerifiedEmail bool      `json:"verified_email"`
+	Name          string    `json:"name"`
+	GivenName     string    `json:"given_name"`
+	FamilyName    string    `json:"family_name"`
+	Picture       string    `json:"picture"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type User struct {
-	ID         uint64     `json:"id"`
-	CreatedAt  time.Time  `json:"created_at"`
-	Name       string     `json:"name"`
-	Email      string     `json:"email"`
-	Password   password   `json:"-"`
-	Activated  bool       `json:"activated"`
-	Version    int        `json:"-"`
-	GoogleData GoogleUser `json:"-"`
+	ID        uint64      `json:"id"`
+	CreatedAt time.Time   `json:"created_at"`
+	Name      string      `json:"name"`
+	Email     string      `json:"email"`
+	Password  password    `json:"-"`
+	Version   int         `json:"-"`
+	Google    *GoogleUser `json:"-"`
 }
 
 type password struct {

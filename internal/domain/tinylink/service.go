@@ -33,22 +33,23 @@ func (s *Service) List(ctx context.Context, userID string) ([]*Tinylink, error) 
 }
 
 func (s *Service) Insert(ctx context.Context, alias, originalURL, domain string, private bool) (*Tinylink, error) {
-	token := auth.TokenFromCtx(ctx)
+	// token := auth.TokenFromCtx(ctx)
 
-	tl := &Tinylink{
-		OriginalURL: originalURL,
-		Alias:       alias,
-		UserID:      token.UserID,
-		Domain:      domain,
-		Private:     private,
-		UsageCount:  0,
-	}
+	// tl := &Tinylink{
+	// 	OriginalURL: originalURL,
+	// 	Alias:       alias,
+	// 	UserID:      token.UserID,
+	// 	Domain:      domain,
+	// 	Private:     private,
+	// 	UsageCount:  0,
+	// }
 
-	if err := s.getStore(ctx).Insert(ctx, tl); err != nil {
-		return nil, err
-	}
+	// if err := s.getStore(ctx).Insert(ctx, tl); err != nil {
+	// 	return nil, err
+	// }
 
-	return tl, nil
+	// return tl, nil
+	return nil, nil
 }
 
 func (s *Service) Update(ctx context.Context, id uint64, alias, domain string, private bool) (*Tinylink, error) {
@@ -65,28 +66,26 @@ func (s *Service) Update(ctx context.Context, id uint64, alias, domain string, p
 }
 
 func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
-	user := auth.UserFromCtx(ctx)
-	userID := user.GetID()
+	// user := auth.UserFromCtx(ctx)
+	// userID := user.GetID()
+	// if userID == "" {
+	// 	// getPublic should work only for sqlite
+	// 	tl, err := s.primary.GetPublic(ctx, alias)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	return tl, nil
+	// }
+	// tl, err := s.getStore(ctx).Get(ctx, userID, alias)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if err := s.primary.IncrementUsageCount(ctx, alias); err != nil {
+	// 	return nil, err
+	// }
+	// return tl, nil
 
-	if userID == "" {
-		// getPublic should work only for sqlite
-		tl, err := s.primary.GetPublic(ctx, alias)
-		if err != nil {
-			return nil, err
-		}
-		return tl, nil
-	}
-
-	tl, err := s.getStore(ctx).Get(ctx, userID, alias)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.primary.IncrementUsageCount(ctx, alias); err != nil {
-		return nil, err
-	}
-
-	return tl, nil
+	return nil, nil
 }
 
 func (s *Service) Delete(ctx context.Context, userID, alias string) error {

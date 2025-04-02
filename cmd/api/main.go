@@ -13,7 +13,6 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/handler"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
-	loggermw "github.com/Kostaaa1/tinylink/internal/middleware/logger"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/gorilla/mux"
@@ -48,7 +47,6 @@ func setupLogger(w io.Writer, cfg *config.Config) *slog.Logger {
 
 func main() {
 	var cfg config.Config
-
 	flag.StringVar(&cfg.Port, "port", "3000", "server address port")
 	flag.StringVar(&cfg.Env, "env", "development", "environment (development|staging|production)")
 	flag.Float64Var(&cfg.Limiter.RPS, "limiter-rps", 2, "rate limiter requests-per-second")
@@ -60,7 +58,6 @@ func main() {
 	flag.StringVar(&cfg.Redis.Password, "redis-password", "", "redis password")
 	flag.IntVar(&cfg.Redis.DB, "redis-db", 0, "redis database number")
 	flag.IntVar(&cfg.Redis.PoolSize, "redis-pool-size", 10, "redis connection pool size")
-
 	flag.Parse()
 
 	logger := setupLogger(os.Stdout, &cfg)
@@ -90,10 +87,9 @@ func main() {
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
 	limit := ratelimiter.New(app.cfg.Limiter)
-	// authMW := auth.Middleware(redisStore.Token, sqliteStore.User)
-	r.Use(middleware.RecoverPanic, limit.Middleware, loggermw.Middleware)
+	r.Use(middleware.RecoverPanic, limit.Middleware)
 
-	// app.handler.Tinylink.RegisterRoutes(r, nil)
+	app.handler.Tinylink.RegisterRoutes(r)
 	app.handler.User.RegisterRoutes(r)
 	app.router = r
 
