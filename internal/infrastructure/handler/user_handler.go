@@ -24,8 +24,6 @@ type UserHandler struct {
 	oauth2Config *oauth2.Config
 }
 
-var ()
-
 func NewUserHandler(userService *user.Service, errHandler *ErrorHandler) *UserHandler {
 	return &UserHandler{
 		ErrorHandler: errHandler,
@@ -82,13 +80,7 @@ func (h *UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user := user.User{
-		Email:  googleUser.Email,
-		Name:   googleUser.Name,
-		Google: &googleUser,
-	}
-
-	storeUser, err := h.service.FindOrCreate(ctx, &user)
+	loggedUser, err := h.service.HandleGoogleLogin(ctx, &googleUser)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -100,13 +92,13 @@ func (h *UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Reques
 	// normal - login - if not found, check if there is an email in google_users, if exists prompt them to add password and create row in users table
 	// linking process - if not exists, insert row in users/google_users table and save user_id in google_users
 
-	jwtToken, err := auth.GenerateJWT(storeUser.ID, storeUser.Email)
+	jwtToken, err := auth.GenerateJWT(loggedUser.ID, loggedUser.Email)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"user": user, "token": jwtToken}, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, envelope{"data": loggedUser, "token": jwtToken}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }

@@ -36,6 +36,24 @@ type User struct {
 	Google    *GoogleUser `json:"-"`
 }
 
+type UserDTO struct {
+	ID        uint64    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Picture   string    `json:"picture,omitempty"`
+}
+
+func NewUserDTO(user *User) UserDTO {
+	return UserDTO{
+		ID:        user.ID,
+		Email:     user.Email,
+		Name:      user.Name,
+		Picture:   user.Google.Picture,
+		CreatedAt: user.CreatedAt,
+	}
+}
+
 type password struct {
 	plainText *string
 	Hash      []byte

@@ -22,6 +22,10 @@ func NewService(userRepo Repository, tokenRepo token.Repository) *Service {
 	}
 }
 
+func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser) (UserDTO, error) {
+	return s.user.HandleGoogleLogin(ctx, googleUser)
+}
+
 func (s *Service) GetUserFromCtx(ctx context.Context) (*User, error) {
 	claims := auth.ClaimsFromCtx(ctx)
 	return s.user.GetByEmail(ctx, claims.Email)

@@ -128,6 +128,225 @@ func (s *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	return &userData, err
 }
 
+func (s *UserRepository) HandleGoogleLogin(ctx context.Context, gUser *user.GoogleUser) (user.UserDTO, error) {
+	newUserDTO := user.UserDTO{}
+
+	err := runInTx(s.db, func(tx *sql.Tx) error {
+		userData := &user.User{
+			Email: gUser.Email,
+			Name:  gUser.Name,
+		}
+
+		var userCreatedAt int64
+
+		query := `SELECT id, created_at FROM users WHERE email = ?`
+		err := tx.QueryRowContext(ctx, query, gUser.Email).Scan(&userData.ID, &userCreatedAt)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				insertQuery := "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, created_at"
+				tx.QueryRowContext(ctx,
+					insertQuery,
+					userData.Name,
+					userData.Email,
+				).Scan(&userData.ID, &userCreatedAt)
+			} else {
+				return err
+			}
+		}
+
+		var googleCreatedAt int64
+
+		queryGoogleUser := "SELECT * FROM google_users_data WHERE id = ?"
+		err = tx.QueryRowContext(ctx, queryGoogleUser, userData.ID).Err()
+		if err != nil {
+			if err == sql.ErrNoRows {
+				insertQuery := `INSERT INTO google_users_data
+								(user_id, email, google_id, name, given_name, family_name, picture, is_verified)
+								VALUES
+								(?, ?, ?, ?, ?, ?, ?, ?)
+								RETURNING created_at`
+
+				if err := tx.QueryRowContext(ctx,
+					insertQuery,
+					userData.ID,
+					gUser.Email,
+					gUser.ID,
+					gUser.Name,
+					gUser.GivenName,
+					gUser.FamilyName,
+					gUser.Picture,
+					gUser.VerifiedEmail,
+				).Scan(&googleCreatedAt); err != nil {
+					return fmt.Errorf("failed to insert Google user data: %w", err)
+				}
+			} else {
+				return fmt.Errorf("failed to query Google user: %w", err)
+			}
+		} else {
+			updateQuery := `UPDATE google_users_data
+			SET
+			google_id = ?,
+			email = ?,
+			name = ?,
+			given_name = ?,
+			family_name = ?,
+			picture = ?,
+			is_verified = ?
+			WHERE user_id = ?
+			RETURNING created_at`
+
+			if err := tx.QueryRowContext(
+				ctx,
+				updateQuery,
+				gUser.ID,
+				gUser.Email,
+				gUser.Name,
+				gUser.GivenName,
+				gUser.FamilyName,
+				gUser.Picture,
+				gUser.VerifiedEmail,
+				userData.ID,
+			).Scan(&googleCreatedAt); err != nil {
+				return fmt.Errorf("failed to update Google user data: %w", err)
+			}
+		}
+
+		userData.CreatedAt = time.Unix(userCreatedAt, 0)
+		gUser.CreatedAt = time.Unix(googleCreatedAt, 0)
+		userData.Google = gUser
+
+		newUserDTO = user.NewUserDTO(userData)
+
+		return nil
+	})
+
+	if err != nil {
+		return newUserDTO, err
+	}
+
+	return newUserDTO, nil
+}
+
+func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	err = fn(tx)
+	if err == nil {
+		return tx.Commit()
+	}
+	rollbackErr := tx.Rollback()
+	if rollbackErr != nil {
+		return errors.Join(err, rollbackErr)
+	}
+	return err
+}
+
+// func (s *UserRepository) HandleGoogleLogin(ctx context.Context, gUser *user.GoogleUser) (user.UserDTO, error) {
+// 	tx, err := s.db.BeginTx(ctx, nil)
+// 	if err != nil {
+// 		return user.UserDTO{}, err
+// 	}
+// 	defer tx.Rollback()
+
+// 	query := `SELECT id FROM users WHERE email = ?`
+
+// 	userData := &user.User{
+// 		Email: gUser.Email,
+// 		Name:  gUser.Name,
+// 	}
+
+// 	err = tx.QueryRowContext(ctx, query, gUser.Email).Scan(&userData.ID)
+
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			query := `INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, created_at`
+// 			var createdAt int64
+// 			err := tx.QueryRowContext(
+// 				ctx,
+// 				query,
+// 				gUser.Name,
+// 				gUser.Email,
+// 			).Scan(&userData.ID, &createdAt)
+// 			if err != nil {
+// 				return user.UserDTO{}, err
+// 			}
+// 			userData.CreatedAt = time.Unix(createdAt, 0)
+// 		}
+// 	} else {
+// 		return user.UserDTO{}, nil
+// 	}
+
+// 	query = `SELECT * FROM google_users_data WHERE email = ? OR user_id = ?`
+// 	err = tx.QueryRowContext(ctx, query, gUser.Email, userData.ID).Err()
+
+// 	var googleCreatedAt int64
+
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			insertQuery := `INSERT INTO google_users_data
+// 				(user_id, email, google_id, name, given_name, family_name, picture, is_verified)
+// 				VALUES
+// 				(?, ?, ?, ?, ?, ?, ?, ?)
+// 				RETURNING created_at`
+
+// 			if err := tx.QueryRowContext(
+// 				ctx,
+// 				insertQuery,
+// 				userData.ID,
+// 				gUser.Email,
+// 				gUser.ID,
+// 				gUser.Name,
+// 				gUser.GivenName,
+// 				gUser.FamilyName,
+// 				gUser.Picture,
+// 				gUser.VerifiedEmail,
+// 			).Scan(&googleCreatedAt); err != nil {
+// 				return user.UserDTO{}, fmt.Errorf("failed to insert Google user data: %w", err)
+// 			}
+// 		} else {
+// 			return user.UserDTO{}, fmt.Errorf("failed to query Google user: %w", err)
+// 		}
+// 	} else {
+// 		updateQuery := `UPDATE google_users_data
+// 			SET
+// 			google_id = ?,
+// 			email = ?,
+// 			name = ?,
+// 			given_name = ?,
+// 			family_name = ?,
+// 			picture = ?,
+// 			is_verified = ?
+// 			WHERE user_id = ?
+// 			RETURNING created_at`
+
+// 		if err := tx.QueryRowContext(
+// 			ctx,
+// 			updateQuery,
+// 			gUser.ID,
+// 			gUser.Email,
+// 			gUser.Name,
+// 			gUser.GivenName,
+// 			gUser.FamilyName,
+// 			gUser.Picture,
+// 			gUser.VerifiedEmail,
+// 			userData.ID,
+// 		).Scan(&googleCreatedAt); err != nil {
+// 			return user.UserDTO{}, fmt.Errorf("failed to update Google user data: %w", err)
+// 		}
+// 	}
+
+// 	if err = tx.Commit(); err != nil {
+// 		return user.UserDTO{}, fmt.Errorf("failed to commit transaction: %w", err)
+// 	}
+
+// 	gUser.CreatedAt = time.Unix(googleCreatedAt, 0)
+// 	userData.Google = gUser
+
+// 	return user.NewUserDTO(userData), nil
+// }
+
 func (s *UserRepository) Insert(ctx context.Context, user *user.User) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

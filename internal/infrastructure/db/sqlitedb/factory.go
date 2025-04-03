@@ -13,19 +13,6 @@ type Repositories struct {
 	User     *UserRepository
 }
 
-func NewRepositoriesFromDB(db *sqlx.DB) *Repositories {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		log.Fatal(err)
-	}
-	return &Repositories{
-		Tinylink: &TinylinkRepository{db: db},
-		User:     &UserRepository{db: db},
-	}
-}
-
 func NewRepositories(dbPath string) *Repositories {
 	db, err := sqlx.Open("sqlite3", dbPath)
 	if err != nil {
