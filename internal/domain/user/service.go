@@ -4,77 +4,89 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/domain/token"
 )
 
-type Service struct {
-	user  Repository
-	token token.Repository
+type Adapters struct {
+	UserRepository UserRepository
 }
 
-func NewService(userRepo Repository, tokenRepo token.Repository) *Service {
+type txProvider interface {
+	WithTransaction(txFunc func(adapters Adapters) error) error
+	GetAdapters() Adapters
+}
+
+type Service struct {
+	txProvider txProvider
+	user       UserRepository
+}
+
+func NewService(txProvider txProvider) *Service {
+	dbAdapters := txProvider.GetAdapters()
+	fmt.Println("DB Adapters: ", dbAdapters)
 	return &Service{
-		user:  userRepo,
-		token: tokenRepo,
+		txProvider: txProvider,
+		user:       dbAdapters.UserRepository,
 	}
 }
 
 func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser) (UserDTO, error) {
-	return s.user.HandleGoogleLogin(ctx, googleUser)
-}
+	var err error
+	user := new(User)
 
-func (s *Service) GetUserFromCtx(ctx context.Context) (*User, error) {
-	claims := auth.ClaimsFromCtx(ctx)
-	return s.user.GetByEmail(ctx, claims.Email)
-}
-
-func (s *Service) FindOrCreate(ctx context.Context, user *User) (*User, error) {
-	newUser, err := s.user.GetByEmail(ctx, user.Email)
-	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			if err := s.user.Insert(ctx, user); err != nil {
-				return nil, err
-			}
-			return user, nil
-		default:
-			return nil, err
+	err = s.txProvider.WithTransaction(func(adapters Adapters) error {
+		user, err = adapters.UserRepository.GetByEmail(ctx, googleUser.Email)
+		if err != nil {
+			return err
 		}
-	}
-	return newUser, nil
+		userID := strconv.FormatUint(user.ID, 10)
+
+		if err := adapters.UserRepository.Delete(ctx, userID); err != nil {
+			return err
+		}
+
+		return errors.New("forced error ot test rollback")
+	})
+
+	return NewUserDTO(user), err
 }
 
-func (s *Service) Register(ctx context.Context, user *User) error {
-	newUser, err := s.user.GetByEmail(ctx, user.Email)
+func (s *Service) GetUserFromCtx(ctx context.Context) (UserDTO, error) {
+	claims := auth.ClaimsFromCtx(ctx)
+	user, err := s.user.GetByEmail(ctx, claims.Email)
+	if err != nil {
+		return UserDTO{}, err
+	}
+	return NewUserDTO(user), nil
+}
+
+func (s *Service) Register(ctx context.Context, userData *User) error {
+	_, err := s.user.GetByEmail(ctx, userData.Email)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
-			return s.user.Insert(ctx, user)
+			return s.user.Insert(ctx, userData)
 		default:
 			return err
 		}
 	}
-	if newUser != nil {
-		fmt.Println("updating user")
-		return s.user.Update(ctx, user)
-	}
-	return nil
+	return ErrDuplicateEmail
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (*User, error) {
+func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, error) {
 	userData, err := s.user.GetByEmail(ctx, email)
 	if err != nil {
-		return nil, err
+		return UserDTO{}, err
 	}
 	matches, err := userData.Password.Matches(password)
 	if err != nil {
-		return nil, err
+		return UserDTO{}, err
 	}
 	if !matches {
-		return nil, ErrInvalidCredentials
+		return UserDTO{}, ErrInvalidCredentials
 	}
-	return userData, err
+	return NewUserDTO(userData), err
 }

@@ -15,10 +15,10 @@ import (
 // 	r := mux.NewRouter()
 // 	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
 // 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
-// redisStore := redisdb.NewRedisStore(&cfg.Redis)
+// redisStore := redisdb.NewRedisStore(&conf.Redis)
 // auth.AuthMiddleware(&redisStore.Token)
 // 	authMiddleware := auth.Middleware()
-// 	limit := ratelimiter.New(app.cfg.Limiter)
+// 	limit := ratelimiter.New(app.conf.Limiter)
 // 	r.Use(middleware.RecoverPanic, limit.Middleware, authMiddleware)
 // 	r.HandleFunc("/health", app.handler.HealthcheckHandler)
 // 	app.handler.Tinylink.RegisterRoutes(r)
@@ -27,12 +27,12 @@ import (
 // }
 
 func (app *application) serve() error {
-	if !strings.HasPrefix(app.cfg.Port, ":") {
-		app.cfg.Port = ":" + app.cfg.Port
+	if !strings.HasPrefix(app.conf.Port, ":") {
+		app.conf.Port = ":" + app.conf.Port
 	}
 
 	srv := &http.Server{
-		Addr:         app.cfg.Port,
+		Addr:         app.conf.Port,
 		Handler:      app.router,
 		ReadTimeout:  3 * time.Second,
 		WriteTimeout: 4 * time.Second,

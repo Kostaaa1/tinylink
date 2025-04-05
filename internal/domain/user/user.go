@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -14,44 +15,44 @@ var (
 	ErrInvalidCredentials = errors.New("passwords")
 )
 
-type GoogleUser struct {
-	UserID        uint64    `json:"-"`
-	ID            string    `json:"id"`
-	Email         string    `json:"email"`
-	VerifiedEmail bool      `json:"verified_email"`
-	Name          string    `json:"name"`
-	GivenName     string    `json:"given_name"`
-	FamilyName    string    `json:"family_name"`
-	Picture       string    `json:"picture"`
-	CreatedAt     time.Time `json:"created_at"`
-}
-
-type User struct {
-	ID        uint64      `json:"id"`
+type UserDTO struct {
+	ID        string      `json:"id"`
 	CreatedAt time.Time   `json:"created_at"`
 	Name      string      `json:"name"`
 	Email     string      `json:"email"`
-	Password  password    `json:"-"`
-	Version   int         `json:"-"`
-	Google    *GoogleUser `json:"-"`
-}
-
-type UserDTO struct {
-	ID        uint64    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	Picture   string    `json:"picture,omitempty"`
+	Google    *GoogleUser `json:"google,omitempty"`
 }
 
 func NewUserDTO(user *User) UserDTO {
 	return UserDTO{
-		ID:        user.ID,
+		ID:        strconv.FormatUint(user.ID, 10),
 		Email:     user.Email,
 		Name:      user.Name,
-		Picture:   user.Google.Picture,
 		CreatedAt: user.CreatedAt,
+		Google:    user.Google,
 	}
+}
+
+type GoogleUser struct {
+	UserID        uint64
+	ID            string
+	Email         string
+	VerifiedEmail bool
+	Name          string
+	GivenName     string
+	FamilyName    string
+	Picture       string
+	CreatedAt     time.Time
+}
+
+type User struct {
+	ID        uint64
+	CreatedAt time.Time
+	Name      string
+	Email     string
+	Password  password
+	Version   int
+	Google    *GoogleUser
 }
 
 type password struct {
@@ -59,27 +60,21 @@ type password struct {
 	Hash      []byte
 }
 
-func (u *User) GetID() string {
-	if u == nil {
-		return ""
-	}
-	return strconv.FormatUint(u.ID, 10)
-}
-
-func (p *password) Set(plainText string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(plainText), 12)
+func (p *password) Set(plainPW string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plainPW), 12)
 	if err != nil {
 		return err
 	}
 
-	p.plainText = &plainText
+	p.plainText = &plainPW
 	p.Hash = hash
 
 	return nil
 }
 
-func (p *password) Matches(plainTextPW string) (bool, error) {
-	err := bcrypt.CompareHashAndPassword(p.Hash, []byte(plainTextPW))
+func (p *password) Matches(plainPW string) (bool, error) {
+	fmt.Println("called")
+	err := bcrypt.CompareHashAndPassword(p.Hash, []byte(plainPW))
 	if err != nil {
 		switch {
 		case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):
@@ -89,6 +84,13 @@ func (p *password) Matches(plainTextPW string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (u *User) GetID() string {
+	if u == nil {
+		return ""
+	}
+	return strconv.FormatUint(u.ID, 10)
 }
 
 func ValidateEmail(v *validator.Validator, email string) {

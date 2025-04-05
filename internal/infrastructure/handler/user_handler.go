@@ -39,8 +39,8 @@ func NewUserHandler(userService *user.Service, errHandler *ErrorHandler) *UserHa
 }
 
 func (h *UserHandler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/login/google", h.HandleGoogleRedirect)
-	r.HandleFunc("/auth/google/callback", h.HandleGoogleCallback)
+	r.HandleFunc("/login/google", h.HandleGoogleRedirect).Methods("GET")
+	r.HandleFunc("/auth/google/callback", h.HandleGoogleCallback).Methods("GET")
 	//////////////////////////////////////////////////////////////////////////////////////////
 	userRoutes := r.PathPrefix("/user").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")

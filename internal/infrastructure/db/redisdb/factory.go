@@ -14,12 +14,12 @@ type Repositories struct {
 	Token    *TokenRepository
 }
 
-func NewRepositories(cfg *config.RedisConfig) *Repositories {
+func NewRepositories(conf config.RedisConfig) *Repositories {
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.Addr,
-		Password: cfg.Password,
-		DB:       cfg.DB,
-		PoolSize: cfg.PoolSize,
+		Addr:     conf.Addr,
+		Password: conf.Password,
+		DB:       conf.DB,
+		PoolSize: conf.PoolSize,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)

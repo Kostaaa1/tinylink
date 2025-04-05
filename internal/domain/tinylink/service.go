@@ -4,20 +4,17 @@ import (
 	"context"
 
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
-	"github.com/Kostaaa1/tinylink/internal/domain/token"
 )
 
 type Service struct {
-	primary DBRepository
+	primary SQLRepository
 	cache   RedisRepository
-	token   token.Repository
 }
 
-func NewService(primary DBRepository, cache RedisRepository, token token.Repository) *Service {
+func NewService(primary SQLRepository, cache RedisRepository) *Service {
 	return &Service{
 		primary: primary,
 		cache:   cache,
-		token:   token,
 	}
 }
 

@@ -17,11 +17,11 @@ type ratelimit struct {
 	burst   int
 }
 
-func New(cfg config.RatelimitConfig) *ratelimit {
+func New(conf config.RatelimitConfig) *ratelimit {
 	return &ratelimit{
-		enabled: cfg.Enabled,
-		burst:   cfg.Burst,
-		rps:     cfg.RPS,
+		enabled: conf.Enabled,
+		burst:   conf.Burst,
+		rps:     conf.RPS,
 	}
 }
 
