@@ -1,36 +1,27 @@
 package redisdb
 
-import (
-	"context"
-	"log"
-	"time"
+// type Repositories struct {
+// 	Tinylink *TinylinkRepository
+// 	Token    *TokenRepository
+// }
 
-	"github.com/Kostaaa1/tinylink/pkg/config"
-	"github.com/redis/go-redis/v9"
-)
+// func NewRepositories(conf config.RedisConfig) *Repositories {
+// 	client := redis.NewClient(&redis.Options{
+// 		Addr:     conf.Addr,
+// 		Password: conf.Password,
+// 		DB:       conf.DB,
+// 		PoolSize: conf.PoolSize,
+// 	})
 
-type Repositories struct {
-	Tinylink *TinylinkRepository
-	Token    *TokenRepository
-}
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+// 	defer cancel()
 
-func NewRepositories(conf config.RedisConfig) *Repositories {
-	client := redis.NewClient(&redis.Options{
-		Addr:     conf.Addr,
-		Password: conf.Password,
-		DB:       conf.DB,
-		PoolSize: conf.PoolSize,
-	})
+// 	if err := client.Ping(ctx).Err(); err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
-	defer cancel()
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		log.Fatal(err)
-	}
-
-	return &Repositories{
-		Tinylink: &TinylinkRepository{client: client},
-		Token:    &TokenRepository{client: client},
-	}
-}
+// 	return &Repositories{
+// 		Tinylink: &TinylinkRepository{client: client},
+// 		Token:    &TokenRepository{client: client},
+// 	}
+// }

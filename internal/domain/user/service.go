@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -16,7 +15,7 @@ type Adapters struct {
 
 type txProvider interface {
 	WithTransaction(txFunc func(adapters Adapters) error) error
-	GetAdapters() Adapters
+	GetDbAdapters() Adapters
 }
 
 type Service struct {
@@ -25,8 +24,7 @@ type Service struct {
 }
 
 func NewService(txProvider txProvider) *Service {
-	dbAdapters := txProvider.GetAdapters()
-	fmt.Println("DB Adapters: ", dbAdapters)
+	dbAdapters := txProvider.GetDbAdapters()
 	return &Service{
 		txProvider: txProvider,
 		user:       dbAdapters.UserRepository,
@@ -34,21 +32,26 @@ func NewService(txProvider txProvider) *Service {
 }
 
 func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser) (UserDTO, error) {
-	var err error
-	user := new(User)
+	user := &User{
+		Name:   googleUser.Name,
+		Email:  googleUser.Email,
+		Google: googleUser,
+	}
 
-	err = s.txProvider.WithTransaction(func(adapters Adapters) error {
-		user, err = adapters.UserRepository.GetByEmail(ctx, googleUser.Email)
+	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
+		fetchedUser, err := adapters.UserRepository.GetByEmail(ctx, user.Email)
 		if err != nil {
-			return err
+			if errors.Is(err, data.ErrRecordNotFound) {
+				if err := adapters.UserRepository.Insert(ctx, user); err != nil {
+					if !errors.Is(err, data.ErrRecordExists) {
+						return fmt.Errorf("failed to insert user: %w", err)
+					}
+				}
+			}
+		} else {
+			user = fetchedUser
 		}
-		userID := strconv.FormatUint(user.ID, 10)
-
-		if err := adapters.UserRepository.Delete(ctx, userID); err != nil {
-			return err
-		}
-
-		return errors.New("forced error ot test rollback")
+		return nil
 	})
 
 	return NewUserDTO(user), err
@@ -63,17 +66,27 @@ func (s *Service) GetUserFromCtx(ctx context.Context) (UserDTO, error) {
 	return NewUserDTO(user), nil
 }
 
-func (s *Service) Register(ctx context.Context, userData *User) error {
-	_, err := s.user.GetByEmail(ctx, userData.Email)
-	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
-			return s.user.Insert(ctx, userData)
-		default:
+func (s *Service) Register(ctx context.Context, userData *User) (UserDTO, error) {
+	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
+		fetched, err := adapters.UserRepository.GetByEmail(ctx, userData.Email)
+		if err != nil {
+			if errors.Is(err, data.ErrRecordNotFound) {
+				return adapters.UserRepository.Insert(ctx, userData)
+			}
 			return err
 		}
+		if fetched != nil {
+			userData.ID = fetched.ID
+			return adapters.UserRepository.Update(ctx, userData)
+		}
+		return ErrDuplicateEmail
+	})
+
+	if err != nil {
+		return UserDTO{}, nil
 	}
-	return ErrDuplicateEmail
+
+	return NewUserDTO(userData), nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, error) {
@@ -81,12 +94,18 @@ func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, e
 	if err != nil {
 		return UserDTO{}, err
 	}
-	matches, err := userData.Password.Matches(password)
-	if err != nil {
-		return UserDTO{}, err
+
+	if len(userData.Password.Hash) > 0 {
+		matches, err := userData.Password.Matches(password)
+		if err != nil {
+			return UserDTO{}, err
+		}
+		if !matches {
+			return UserDTO{}, ErrInvalidCredentials
+		}
+	} else {
+		return UserDTO{}, ErrNoUserPasswordSet
 	}
-	if !matches {
-		return UserDTO{}, ErrInvalidCredentials
-	}
+
 	return NewUserDTO(userData), err
 }

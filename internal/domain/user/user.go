@@ -2,7 +2,6 @@ package user
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -12,16 +11,9 @@ import (
 
 var (
 	ErrDuplicateEmail     = errors.New("duplicate email")
-	ErrInvalidCredentials = errors.New("passwords")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrNoUserPasswordSet  = errors.New("user doesn't have password set")
 )
-
-type UserDTO struct {
-	ID        string      `json:"id"`
-	CreatedAt time.Time   `json:"created_at"`
-	Name      string      `json:"name"`
-	Email     string      `json:"email"`
-	Google    *GoogleUser `json:"google,omitempty"`
-}
 
 func NewUserDTO(user *User) UserDTO {
 	return UserDTO{
@@ -29,30 +21,58 @@ func NewUserDTO(user *User) UserDTO {
 		Email:     user.Email,
 		Name:      user.Name,
 		CreatedAt: user.CreatedAt,
-		Google:    user.Google,
+		Google: &GoogleUserDTO{
+			ID:            user.Google.ID,
+			Name:          user.Google.Name,
+			Picture:       user.Google.Picture,
+			FamilyName:    user.Google.FamilyName,
+			GivenName:     user.Google.GivenName,
+			VerifiedEmail: user.Google.VerifiedEmail,
+			CreatedAt:     user.Google.CreatedAt,
+		},
 	}
 }
 
+type UserDTO struct {
+	ID        string         `json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	Name      string         `json:"name"`
+	Email     string         `json:"email"`
+	Google    *GoogleUserDTO `json:"google,omitempty"`
+}
+
+type GoogleUserDTO struct {
+	// UserID        uint64    `json:"-"`
+	// Email         string    `json:"-"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	GivenName     string    `json:"given_name"`
+	FamilyName    string    `json:"family_name"`
+	Picture       string    `json:"picture"`
+	VerifiedEmail bool      `json:"is_verified"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type GoogleUser struct {
-	UserID        uint64
-	ID            string
-	Email         string
-	VerifiedEmail bool
-	Name          string
-	GivenName     string
-	FamilyName    string
-	Picture       string
-	CreatedAt     time.Time
+	UserID        uint64    `json:"-"`
+	ID            string    `json:"id"`
+	Email         string    `json:"email"`
+	VerifiedEmail bool      `json:"is_verified"`
+	Name          string    `json:"name"`
+	GivenName     string    `json:"given_name"`
+	FamilyName    string    `json:"family_name"`
+	Picture       string    `json:"picture"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type User struct {
-	ID        uint64
-	CreatedAt time.Time
-	Name      string
-	Email     string
-	Password  password
-	Version   int
-	Google    *GoogleUser
+	ID        uint64      `json:"id"`
+	Name      string      `json:"name"`
+	Email     string      `json:"email"`
+	Password  password    `json:"password"`
+	CreatedAt time.Time   `json:"created_at"`
+	Version   int         `json:"version"`
+	Google    *GoogleUser `json:"google"`
 }
 
 type password struct {
@@ -73,7 +93,6 @@ func (p *password) Set(plainPW string) error {
 }
 
 func (p *password) Matches(plainPW string) (bool, error) {
-	fmt.Println("called")
 	err := bcrypt.CompareHashAndPassword(p.Hash, []byte(plainPW))
 	if err != nil {
 		switch {

@@ -2,7 +2,7 @@ package user
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -15,7 +15,7 @@ func NewRepositoryProvider(db *sqlx.DB) *RepositoryProvider {
 	return &RepositoryProvider{db: db}
 }
 
-func (tp *RepositoryProvider) GetAdapters() Adapters {
+func (tp *RepositoryProvider) GetDbAdapters() Adapters {
 	return Adapters{
 		UserRepository: &SQLiteUserRepository{db: tp.db},
 	}
@@ -30,60 +30,45 @@ func (tp *RepositoryProvider) WithTransaction(txFunc func(adapters Adapters) err
 	})
 }
 
+// func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
+// 	tx, err := db.Begin()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	if _, err := tx.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+// 		_ = tx.Rollback()
+// 		return fmt.Errorf("failed to enable foreign key enforcement in tx: %w", err)
+// 	}
+// 	defer func() {
+// 		if p := recover(); p != nil {
+// 			tx.Rollback()
+// 			panic(p)
+// 		} else if err != nil {
+// 			tx.Rollback()
+// 		} else {
+// 			fmt.Println("commiting")
+// 			err = tx.Commit()
+// 		}
+// 	}()
+// 	err = fn(tx)
+// 	return err
+// }
+
 func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p)
-		} else if err != nil {
-			tx.Rollback()
-		} else {
-			fmt.Println("commiting")
-			err = tx.Commit()
-		}
-	}()
-
 	err = fn(tx)
+	if err == nil {
+		return tx.Commit()
+	}
+
+	rollbackErr := tx.Rollback()
+	if rollbackErr != nil {
+		return errors.Join(err, rollbackErr)
+	}
+
 	return err
 }
-
-// func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
-// 	tx, err := db.Begin()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer func() {
-// 		tx.Rollback()
-// 	}()
-// 	err = fn(tx)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return tx.Commit()
-// }
-
-// func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
-// 	tx, err := db.Begin()
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	err = fn(tx)
-// 	if err == nil {
-// 		return tx.Commit()
-// 	}
-
-// 	fmt.Println("running rollback")
-// 	rollbackErr := tx.Rollback()
-// 	if rollbackErr != nil {
-// 		fmt.Println("rollback failed?")
-// 		return errors.Join(err, rollbackErr)
-// 	}
-
-// 	return err
-// }

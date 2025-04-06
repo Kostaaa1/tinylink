@@ -8,12 +8,8 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/mattn/go-sqlite3"
 )
-
-// NOT USED //,,
-// func NewSQLiteRepository(db db) *SQLiteUserRepository {
-// 	return &SQLiteUserRepository{db: db}
-// }
 
 type db interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -138,206 +134,44 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 	return userData, err
 }
 
-// func (r *SQLiteUserRepository) HandleGoogleLogin(ctx context.Context, gUser *GoogleUser) (UserDTO, error) {
-// 	return UserDTO{}, nil
+func (r *SQLiteUserRepository) GetGoogleUser(ctx context.Context, email string) (*GoogleUser, error) {
+	query := `SELECT user_id, google_id, email, name, given_name, family_name, picture, is_verified, created_at 
+		FROM google_users_data WHERE email = ?`
 
-// newUserDTO := UserDTO{}
+	var gUser GoogleUser
+	var createdAt int64
+	var isVerified sql.NullBool
 
-// userData := &User{
-// 	Email: gUser.Email,
-// 	Name:  gUser.Name,
-// }
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
+		&gUser.UserID,
+		&gUser.ID,
+		&gUser.Email,
+		&gUser.Name,
+		&gUser.GivenName,
+		&gUser.FamilyName,
+		&gUser.Picture,
+		&isVerified,
+		&createdAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, data.ErrRecordNotFound
+		}
+		return nil, err
+	}
+	gUser.VerifiedEmail = isVerified.Bool
+	gUser.CreatedAt = time.Unix(createdAt, 0)
+	return &gUser, nil
+}
 
-// var userCreatedAt int64
-
-// query := `SELECT id, created_at FROM users WHERE email = ?`
-// err := r.db.QueryRowContext(ctx, query, gUser.Email).Scan(&userData.ID, &userCreatedAt)
-// if err != nil {
-// 	if err == sql.ErrNoRows {
-// 		insertQuery := "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, created_at"
-// 		r.db.QueryRowContext(ctx,
-// 			insertQuery,
-// 			userData.Name,
-// 			userData.Email,
-// 		).Scan(&userData.ID, &userCreatedAt)
-// 	} else {
-// 		return err
-// 	}
-// }
-
-// var googleCreatedAt int64
-
-// queryGoogleUser := "SELECT * FROM google_users_data WHERE id = ?"
-// err = r.db.QueryRowContext(ctx, queryGoogleUser, userData.ID).Err()
-// if err != nil {
-// 	if err == sql.ErrNoRows {
-// 		insertQuery := `INSERT INTO google_users_data
-// 							(user_id, email, google_id, name, given_name, family_name, picture, is_verified)
-// 							VALUES
-// 							(?, ?, ?, ?, ?, ?, ?, ?)
-// 							RETURNING created_at`
-
-// 		if err := r.db.QueryRowContext(ctx,
-// 			insertQuery,
-// 			userData.ID,
-// 			gUser.Email,
-// 			gUser.ID,
-// 			gUser.Name,
-// 			gUser.GivenName,
-// 			gUser.FamilyName,
-// 			gUser.Picture,
-// 			gUser.VerifiedEmail,
-// 		).Scan(&googleCreatedAt); err != nil {
-// 			return fmt.Errorf("failed to insert Google user data: %w", err)
-// 		}
-// 	} else {
-// 		return fmt.Errorf("failed to query Google user: %w", err)
-// 	}
-// } else {
-// 	updateQuery := `UPDATE google_users_data
-// 		SET
-// 		google_id = ?,
-// 		email = ?,
-// 		name = ?,
-// 		given_name = ?,
-// 		family_name = ?,
-// 		picture = ?,
-// 		is_verified = ?
-// 		WHERE user_id = ?
-// 		RETURNING created_at`
-
-// 	if err := r.db.QueryRowContext(
-// 		ctx,
-// 		updateQuery,
-// 		gUser.ID,
-// 		gUser.Email,
-// 		gUser.Name,
-// 		gUser.GivenName,
-// 		gUser.FamilyName,
-// 		gUser.Picture,
-// 		gUser.VerifiedEmail,
-// 		userData.ID,
-// 	).Scan(&googleCreatedAt); err != nil {
-// 		return fmt.Errorf("failed to update Google user data: %w", err)
-// 	}
-// }
-
-// userData.CreatedAt = time.Unix(userCreatedAt, 0)
-// gUser.CreatedAt = time.Unix(googleCreatedAt, 0)
-// userData.Google = gUser
-
-// newUserDTO = user.NewUserDTO(userData)
-
-// return nil
-// // })
-
-// if err != nil {
-// 	return newUserDTO, err
-// }
-
-// return newUserDTO, nil
-// }
-
-// func (r *SQLiteUserRepository) HandleGoogleLogin(ctx context.Context, gUser *GoogleUser) (UserDTO, error) {
-// 	tx, err := r.db.BeginTx(ctx, nil)
-// 	if err != nil {
-// 		return UserDTO{}, err
-// 	}
-// 	defer tx.Rollback()
-
-// 	query := `SELECT id FROM users WHERE email = ?`
-
-// 	userData := &User{
-// 		Email: gUser.Email,
-// 		Name:  gUser.Name,
-// 	}
-
-// 	err = tx.QueryRowContext(ctx, query, gUser.Email).Scan(&userData.ID)
-
-// 	if err != nil {
-// 		if err == sql.ErrNoRows {
-// 			query := `INSERT INTO users (name, email) VALUES (?, ?) RETURNING id, created_at`
-// 			var createdAt int64
-// 			err := tx.QueryRowContext(
-// 				ctx,
-// 				query,
-// 				gUser.Name,
-// 				gUser.Email,
-// 			).Scan(&userData.ID, &createdAt)
-// 			if err != nil {
-// 				return UserDTO{}, err
-// 			}
-// 			userData.CreatedAt = time.Unix(createdAt, 0)
-// 		}
-// 	} else {
-// 		return UserDTO{}, nil
-// 	}
-
-// 	query = `SELECT * FROM google_users_data WHERE email = ? OR user_id = ?`
-// 	err = tx.QueryRowContext(ctx, query, gUser.Email, userData.ID).Err()
-
-// 	var googleCreatedAt int64
-
-// 	if err != nil {
-// 		if err == sql.ErrNoRows {
-// 			insertQuery := `INSERT INTO google_users_data
-// 				(user_id, email, google_id, name, given_name, family_name, picture, is_verified)
-// 				VALUES
-// 				(?, ?, ?, ?, ?, ?, ?, ?)
-// 				RETURNING created_at`
-
-// 			if err := tx.QueryRowContext(
-// 				ctx,
-// 				insertQuery,
-// 				userData.ID,
-// 				gUser.Email,
-// 				gUser.ID,
-// 				gUser.Name,
-// 				gUser.GivenName,
-// 				gUser.FamilyName,
-// 				gUser.Picture,
-// 				gUser.VerifiedEmail,
-// 			).Scan(&googleCreatedAt); err != nil {
-// 				return UserDTO{}, fmt.Errorf("failed to insert Google user data: %w", err)
-// 			}
-// 		} else {
-// 			return UserDTO{}, fmt.Errorf("failed to query Google user: %w", err)
-// 		}
-// 	} else {
-// 		updateQuery := `UPDATE google_users_data
-// 			SET
-// 			google_id = ?,
-// 			email = ?,
-// 			name = ?,
-// 			given_name = ?,
-// 			family_name = ?,
-// 			picture = ?,
-// 			is_verified = ?
-// 			WHERE user_id = ?
-// 			RETURNING created_at`
-
-// 		if err := tx.QueryRowContext(
-// 			ctx,
-// 			updateQuery,
-// 			gUser.ID,
-// 			gUser.Email,
-// 			gUser.Name,
-// 			gUser.GivenName,
-// 			gUser.FamilyName,
-// 			gUser.Picture,
-// 			gUser.VerifiedEmail,
-// 			userData.ID,
-// 		).Scan(&googleCreatedAt); err != nil {
-// 			return UserDTO{}, fmt.Errorf("failed to update Google user data: %w", err)
-// 		}
-// 	}
-// 	if err = tx.Commit(); err != nil {
-// 		return UserDTO{}, fmt.Errorf("failed to commit transaction: %w", err)
-// 	}
-// 	gUser.CreatedAt = time.Unix(googleCreatedAt, 0)
-// 	userData.Google = gUser
-// 	return user.NewUserDTO(userData), nil
-// }
+func isUniqueConstraintErr(err error) bool {
+	if sqliteError, ok := err.(sqlite3.Error); ok {
+		if sqliteError.Code == sqlite3.ErrConstraint && sqliteError.ExtendedCode == sqlite3.ErrConstraintUnique {
+			return true
+		}
+	}
+	return false
+}
 
 func (r *SQLiteUserRepository) Insert(ctx context.Context, user *User) error {
 	query := `INSERT INTO users (name, email, password_hash) 
@@ -346,35 +180,70 @@ func (r *SQLiteUserRepository) Insert(ctx context.Context, user *User) error {
 
 	args := []interface{}{user.Name, user.Email, user.Password.Hash}
 
-	row := r.db.QueryRowContext(ctx, query, args...)
-
 	var createdAt int64
-	if err := row.Scan(&user.ID, &createdAt, &user.Version); err != nil {
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &createdAt, &user.Version); err != nil {
+		if isUniqueConstraintErr(err) {
+			return data.ErrRecordExists
+		}
 		return err
 	}
 	user.CreatedAt = time.Unix(createdAt, 0)
 
-	// if user.Google != nil {
-	// 	query2 := `INSERT INTO google_users_data
-	//               (user_id, google_id, email, name, given_name, family_name, picture, is_verified)
-	//               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	//               RETURNING google_users_data.created_at`
-	// 	args2 := []interface{}{
-	// 		user.ID,
-	// 		user.Google.ID,
-	// 		user.Google.Email,
-	// 		user.Google.Name,
-	// 		user.Google.GivenName,
-	// 		user.Google.FamilyName,
-	// 		user.Google.Picture,
-	// 		user.Google.VerifiedEmail,
-	// 	}
-	// 	var googleCreatedAt int64
-	// 	if err := row2.Scan(&googleCreatedAt); err != nil {
-	// 		return err
-	// 	}
-	// 	user.Google.CreatedAt = time.Unix(googleCreatedAt, 0)
-	// }
+	if user.Google != nil {
+		query := `INSERT INTO google_users_data
+	              (user_id, google_id, email, name, given_name, family_name, picture, is_verified)
+	              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	              RETURNING google_users_data.created_at`
+
+		args := []interface{}{
+			user.ID,
+			user.Google.ID,
+			user.Google.Email,
+			user.Google.Name,
+			user.Google.GivenName,
+			user.Google.FamilyName,
+			user.Google.Picture,
+			user.Google.VerifiedEmail,
+		}
+
+		var googleCreatedAt int64
+		if err := r.db.QueryRowContext(ctx, query, args...).Scan(&googleCreatedAt); err != nil {
+			if isUniqueConstraintErr(err) {
+				return data.ErrRecordExists
+			}
+			return err
+		}
+		user.Google.CreatedAt = time.Unix(googleCreatedAt, 0)
+	}
+
+	return nil
+}
+
+func (r *SQLiteUserRepository) InsertGoogleUser(ctx context.Context, googleUser *GoogleUser) error {
+	query := `INSERT INTO google_users_data
+	              (user_id, google_id, email, name, given_name, family_name, picture, is_verified)
+	              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	              RETURNING google_users_data.created_at`
+
+	args := []interface{}{
+		googleUser.UserID,
+		googleUser.ID,
+		googleUser.Email,
+		googleUser.Name,
+		googleUser.GivenName,
+		googleUser.FamilyName,
+		googleUser.Picture,
+		googleUser.VerifiedEmail,
+	}
+
+	var googleCreatedAt int64
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&googleCreatedAt); err != nil {
+		if isUniqueConstraintErr(err) {
+			return data.ErrRecordExists
+		}
+		return err
+	}
+	googleUser.CreatedAt = time.Unix(googleCreatedAt, 0)
 
 	return nil
 }

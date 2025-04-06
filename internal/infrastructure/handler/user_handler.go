@@ -132,6 +132,8 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 			h.InvalidCredentialsResponse(w, r)
 		case errors.Is(err, data.ErrRecordNotFound):
 			h.NotFoundResponse(w, r)
+		case errors.Is(err, user.ErrNoUserPasswordSet):
+			h.BadRequestResponse(w, r, user.ErrNoUserPasswordSet)
 		default:
 			h.ServerErrorResponse(w, r, err)
 		}
@@ -144,7 +146,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"user": userData, "token": token}, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, envelope{"data": userData, "token": token}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -181,7 +183,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	err = h.service.Register(ctx, userData)
+	dto, err := h.service.Register(ctx, userData)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrDuplicateEmail):
@@ -192,7 +194,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"user": userData}, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, envelope{"data": dto}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
