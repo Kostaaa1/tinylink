@@ -17,7 +17,7 @@ var (
 
 func NewUserDTO(user *User) UserDTO {
 	return UserDTO{
-		ID:        strconv.FormatUint(user.ID, 10),
+		ID:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
 		CreatedAt: user.CreatedAt,
@@ -34,7 +34,7 @@ func NewUserDTO(user *User) UserDTO {
 }
 
 type UserDTO struct {
-	ID        string         `json:"id"`
+	ID        uint64         `json:"id"`
 	CreatedAt time.Time      `json:"created_at"`
 	Name      string         `json:"name"`
 	Email     string         `json:"email"`

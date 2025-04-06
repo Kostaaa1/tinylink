@@ -45,6 +45,7 @@ func (h *UserHandler) RegisterRoutes(r *mux.Router) {
 	userRoutes := r.PathPrefix("/user").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
 	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
+	// userRoutes.HandleFunc("/change-password", h.ChangePassword).Methods("POST")
 }
 
 func (h *UserHandler) HandleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
