@@ -6,46 +6,63 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
 )
 
-type Service struct {
-	primary SQLRepository
-	cache   RedisRepository
+type DBAdapters struct {
+	TinylinkDBRepository DBRepository
 }
 
-func NewService(primary SQLRepository, cache RedisRepository) *Service {
+type RedisAdapters struct {
+	TinylinkRedisRepository RedisRepository
+}
+
+type Adapters struct {
+	DBAdapters
+	RedisAdapters
+}
+
+type txProvider interface {
+	WithTransaction(txFunc func(dbAdapters DBAdapters) error) error
+	GetAdapters() Adapters
+}
+
+type Service struct {
+	txProvider    txProvider
+	tinylinkDb    DBRepository
+	tinylinkRedis RedisRepository
+}
+
+func NewService(txProvider txProvider) *Service {
+	adapters := txProvider.GetAdapters()
 	return &Service{
-		primary: primary,
-		cache:   cache,
+		txProvider:    txProvider,
+		tinylinkDb:    adapters.TinylinkDBRepository,
+		tinylinkRedis: adapters.TinylinkRedisRepository,
 	}
 }
 
 func (s *Service) getStore(ctx context.Context) Repository {
 	if auth.IsAuthenticated(ctx) {
-		return s.primary
+		return s.tinylinkDb
 	}
-	return s.cache
+	return s.tinylinkRedis
 }
 
 func (s *Service) List(ctx context.Context, userID string) ([]*Tinylink, error) {
-	return s.getStore(ctx).List(ctx, userID)
+	return nil, nil
 }
 
 func (s *Service) Insert(ctx context.Context, alias, originalURL, domain string, private bool) (*Tinylink, error) {
-	// token := auth.TokenFromCtx(ctx)
-
-	// tl := &Tinylink{
-	// 	OriginalURL: originalURL,
-	// 	Alias:       alias,
-	// 	UserID:      token.UserID,
-	// 	Domain:      domain,
-	// 	Private:     private,
-	// 	UsageCount:  0,
-	// }
-
-	// if err := s.getStore(ctx).Insert(ctx, tl); err != nil {
-	// 	return nil, err
-	// }
-
-	// return tl, nil
+	claims := auth.ClaimsFromCtx(ctx)
+	newTl := &Tinylink{
+		UserID:      claims.ID,
+		OriginalURL: originalURL,
+		Alias:       alias,
+		Domain:      domain,
+		Private:     private,
+		UsageCount:  0,
+	}
+	if err := s.getStore(ctx).Insert(ctx, newTl); err != nil {
+		return nil, err
+	}
 	return nil, nil
 }
 
@@ -62,27 +79,40 @@ func (s *Service) Update(ctx context.Context, id uint64, alias, domain string, p
 	return tl, nil
 }
 
+// Auth user - can access public/private
+// Non auth user - can access only public
+// IF authenticated,
+// If not, check public redis cache, if not found get from db. It found increment usage count
 func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
-	// user := auth.UserFromCtx(ctx)
-	// userID := user.GetID()
-	// if userID == "" {
-	// 	// getPublic should work only for sqlite
-	// 	tl, err := s.primary.GetPublic(ctx, alias)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	return tl, nil
-	// }
-	// tl, err := s.getStore(ctx).Get(ctx, userID, alias)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if err := s.primary.IncrementUsageCount(ctx, alias); err != nil {
-	// 	return nil, err
-	// }
-	// return tl, nil
+	claims := auth.ClaimsFromCtx(ctx)
+	userID := claims.ID
 
-	return nil, nil
+	var err error
+	var tl *Tinylink
+
+	if userID == "" {
+		tl, err = s.tinylinkRedis.Get(ctx, alias)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		tl, err = s.tinylinkDb.GetByUserID(ctx, userID, alias)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if tl == nil {
+		tl, err = s.tinylinkDb.Get(ctx, alias)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.tinylinkDb.IncrementUsageCount(ctx, alias); err != nil {
+			return nil, err
+		}
+	}
+
+	return tl, nil
 }
 
 func (s *Service) Delete(ctx context.Context, userID, alias string) error {

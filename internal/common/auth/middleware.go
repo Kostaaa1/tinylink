@@ -20,7 +20,6 @@ func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bearer := r.Header.Get("Authorization")
 		token := strings.TrimPrefix(bearer, "Bearer ")
-		fmt.Println("token: ", token)
 
 		if token == "" {
 			cookie, err := r.Cookie(SessionKey)
@@ -38,7 +37,6 @@ func Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		fmt.Println("AUTH CLAIMS: ", claims)
 		ctx := context.WithValue(r.Context(), claimsContextKey, claims)
 		r = r.WithContext(ctx)
 

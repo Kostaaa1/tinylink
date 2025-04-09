@@ -1,4 +1,4 @@
-package redisdb
+package tinylink
 
 import (
 	"context"
@@ -7,11 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/redis/go-redis/v9"
 )
 
-type TinylinkRepository struct {
+type TinylinkRedisRepository struct {
 	client *redis.Client
 }
 
@@ -35,7 +34,7 @@ func randStr(n int) string {
 	return str.String()
 }
 
-func (r *TinylinkRepository) GenerateAlias(ctx context.Context, n int) (string, error) {
+func (r *TinylinkRedisRepository) GenerateAlias(ctx context.Context, n int) (string, error) {
 	value, err := r.client.Incr(ctx, "tinylink_count").Result()
 	if err != nil {
 		return "", err
@@ -52,30 +51,30 @@ func (r *TinylinkRepository) GenerateAlias(ctx context.Context, n int) (string, 
 	return alias, nil
 }
 
-func (r *TinylinkRepository) Close() error {
+func (r *TinylinkRedisRepository) Close() error {
 	return r.client.Close()
 }
 
-func (r *TinylinkRepository) getTokenTTL(ctx context.Context, userID string) time.Duration {
+func (r *TinylinkRedisRepository) getTokenTTL(ctx context.Context, userID string) time.Duration {
 	return 0
 }
 
-func (r *TinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) error {
+func (r *TinylinkRedisRepository) Update(ctx context.Context, tl *Tinylink) error {
 	return nil
 }
 
-func (r *TinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) error {
+func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) error {
 	return nil
 }
 
-func (r *TinylinkRepository) Get(ctx context.Context, userID, alias string) (*tinylink.Tinylink, error) {
+func (r *TinylinkRedisRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	return nil, nil
 }
 
-func (r *TinylinkRepository) List(ctx context.Context, userID string) ([]*tinylink.Tinylink, error) {
+func (r *TinylinkRedisRepository) List(ctx context.Context, userID string) ([]*Tinylink, error) {
 	return nil, nil
 }
 
-func (r *TinylinkRepository) Delete(ctx context.Context, userID, alias string) error {
+func (r *TinylinkRedisRepository) Delete(ctx context.Context, userID, alias string) error {
 	return nil
 }

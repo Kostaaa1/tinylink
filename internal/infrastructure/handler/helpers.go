@@ -11,10 +11,23 @@ import (
 type envelope map[string]interface{}
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}, headers http.Header) error {
-	js, err := json.Marshal(data)
+	var response interface{}
+	if data == nil {
+		data = struct{}{}
+	}
+
+	isSuccess := status >= 200 && status < 300
+	if isSuccess {
+		response = envelope{"success": true, "data": data}
+	} else {
+		response = envelope{"success": false, "data": data}
+	}
+
+	js, err := json.Marshal(response)
 	if err != nil {
 		return err
 	}
+
 	js = append(js, '\n')
 	for key, value := range headers {
 		w.Header()[key] = value

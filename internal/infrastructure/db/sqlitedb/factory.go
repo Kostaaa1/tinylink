@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/config"
@@ -53,16 +50,13 @@ func StartDB(conf config.SQLConfig) (*sqlx.DB, error) {
 		log.Fatal("Failed to enable foreign keys:", err)
 	}
 
-	_, b, _, _ := runtime.Caller(0)
-
-	basePath := filepath.Join(filepath.Dir(b), "../../../../sql/tables.sql")
-
-	tablesSql, err := os.ReadFile(basePath)
-	if err != nil {
-		return nil, err
-	}
-
-	db.Exec(string(tablesSql))
+	// _, b, _, _ := runtime.Caller(0)
+	// basePath := filepath.Join(filepath.Dir(b), "../../../../sql/tables.sql")
+	// tablesSql, err := os.ReadFile(basePath)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// db.Exec(string(tablesSql))
 
 	return db, nil
 }

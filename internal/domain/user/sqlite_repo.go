@@ -11,11 +11,6 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-type db interface {
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-}
-
 type SQLiteUserRepository struct {
 	db db
 }

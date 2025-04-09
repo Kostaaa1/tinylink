@@ -23,15 +23,11 @@ func (w *statusResponseWriter) GetStatus() int {
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		raw := r.URL.RawQuery
 		path := r.URL.RequestURI()
 
 		wrappedWriter := &statusResponseWriter{ResponseWriter: w}
 		next.ServeHTTP(wrappedWriter, r)
 
-		if raw != "" {
-			path = path + "?" + raw
-		}
 		statusCode := wrappedWriter.GetStatus()
 
 		attrs := []any{

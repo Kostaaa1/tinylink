@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/redisdb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/handler"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
+	reqlogger "github.com/Kostaaa1/tinylink/internal/middleware/logger"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/gorilla/mux"
@@ -25,27 +28,15 @@ type application struct {
 	logger  *slog.Logger
 }
 
+var (
+	conf config.Config
+)
+
 func init() {
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
 	}
-}
-
-func setupLogger(w io.Writer, conf *config.Config) *slog.Logger {
-	var logHandler slog.Handler
-	if conf.Env == "development" {
-		logHandler = slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug})
-	} else {
-		logHandler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelError})
-	}
-	logger := slog.New(logHandler)
-	slog.SetDefault(logger)
-	return logger
-}
-
-func main() {
-	var conf config.Config
 
 	flag.StringVar(&conf.Port, "port", "3000", "server address port")
 	flag.StringVar(&conf.Env, "env", "development", "environment (development|staging|production)")
@@ -65,7 +56,21 @@ func main() {
 	flag.IntVar(&conf.Redis.PoolSize, "redis-pool-size", 10, "redis connection pool size")
 
 	flag.Parse()
+}
 
+func setupLogger(w io.Writer, conf *config.Config) *slog.Logger {
+	var logHandler slog.Handler
+	if conf.Env == "development" {
+		logHandler = slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		logHandler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelError})
+	}
+	logger := slog.New(logHandler)
+	slog.SetDefault(logger)
+	return logger
+}
+
+func main() {
 	logger := setupLogger(os.Stdout, &conf)
 
 	db, err := sqlitedb.StartDB(conf.SQL)
@@ -73,11 +78,20 @@ func main() {
 		log.Fatal(err)
 	}
 
+	redisClient, err := redisdb.StartRedis(conf.Redis)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	userRepoProvider := user.NewRepositoryProvider(db)
 	userService := user.NewService(userRepoProvider)
 
+	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
+	tinylinkService := tinylink.NewService(tinylinkProvider)
+
 	errHandler := handler.NewErrorHandler(logger)
 	userHandler := handler.NewUserHandler(userService, errHandler)
+	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
 
 	app := application{
 		conf:   &conf,
@@ -85,6 +99,7 @@ func main() {
 		handler: handler.Handler{
 			ErrorHandler: errHandler,
 			User:         userHandler,
+			Tinylink:     tinylinkHandler,
 		},
 	}
 
@@ -93,10 +108,10 @@ func main() {
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
 	limit := ratelimiter.New(app.conf.Limiter)
-	r.Use(middleware.RecoverPanic, limit.Middleware)
+	r.Use(middleware.RecoverPanic, limit.Middleware, reqlogger.Middleware)
 
-	// app.handler.Tinylink.RegisterRoutes(r)
 	app.handler.User.RegisterRoutes(r)
+	app.handler.Tinylink.RegisterRoutes(r)
 	app.router = r
 
 	if err := app.serve(); err != nil {

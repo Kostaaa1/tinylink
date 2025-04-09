@@ -14,16 +14,16 @@ var (
 )
 
 type Claims struct {
-	UserID string
-	Email  string
+	ID    string
+	Email string
 	jwt.RegisteredClaims
 }
 
 func GenerateJWT(userID uint64, email string) (string, error) {
 	id := strconv.FormatUint(userID, 10)
 	claims := &Claims{
-		UserID: id,
-		Email:  email,
+		ID:    id,
+		Email: email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

@@ -12,16 +12,18 @@ import (
 var (
 	ErrDuplicateEmail     = errors.New("duplicate email")
 	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrNoUserPasswordSet  = errors.New("user doesn't have password set")
+	ErrNoUserPasswordSet  = errors.New("password not set for user")
 )
 
 func NewUserDTO(user *User) UserDTO {
-	return UserDTO{
+	dto := UserDTO{
 		ID:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
 		CreatedAt: user.CreatedAt,
-		Google: &GoogleUserDTO{
+	}
+	if user.Google != nil {
+		dto.Google = &GoogleUserDTO{
 			ID:            user.Google.ID,
 			Name:          user.Google.Name,
 			Picture:       user.Google.Picture,
@@ -29,8 +31,9 @@ func NewUserDTO(user *User) UserDTO {
 			GivenName:     user.Google.GivenName,
 			VerifiedEmail: user.Google.VerifiedEmail,
 			CreatedAt:     user.Google.CreatedAt,
-		},
+		}
 	}
+	return dto
 }
 
 type UserDTO struct {
@@ -42,8 +45,6 @@ type UserDTO struct {
 }
 
 type GoogleUserDTO struct {
-	// UserID        uint64    `json:"-"`
-	// Email         string    `json:"-"`
 	ID            string    `json:"id"`
 	Name          string    `json:"name"`
 	GivenName     string    `json:"given_name"`
@@ -69,7 +70,7 @@ type User struct {
 	ID        uint64      `json:"id"`
 	Name      string      `json:"name"`
 	Email     string      `json:"email"`
-	Password  password    `json:"password"`
+	Password  password    `json:"-"`
 	CreatedAt time.Time   `json:"created_at"`
 	Version   int         `json:"version"`
 	Google    *GoogleUser `json:"google"`
@@ -136,4 +137,16 @@ func ValidateUser(v *validator.Validator, user *User) {
 	if user.Password.Hash == nil {
 		panic("missing password hash for user")
 	}
+}
+
+type RegisterRequest struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginRequest struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }

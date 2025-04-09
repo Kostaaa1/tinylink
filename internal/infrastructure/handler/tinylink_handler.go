@@ -28,32 +28,28 @@ func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler *ErrorHand
 }
 
 func (h *TinylinkHandler) RegisterRoutes(r *mux.Router) {
-	protected := r.PathPrefix("").Subrouter()
-	protected.Use(auth.Middleware)
-	protected.HandleFunc("/tinylink", h.Update).Methods("PUT")
-	protected.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
-	protected.HandleFunc("/tinylink", h.Create).Methods("POST")
-	protected.HandleFunc("/tinylink", h.List).Methods("GET")
-	r.HandleFunc("/{alias}", h.Redirect).Methods("GET")
-	// this should not be protected
+	tinylinkRouter := r.PathPrefix("/tinylink").Subrouter()
+	tinylinkRouter.Use(auth.Middleware)
+	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
+	tinylinkRouter.HandleFunc("", h.Create).Methods("POST")
+	tinylinkRouter.HandleFunc("", h.List).Methods("GET")
+	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
+	r.HandleFunc("/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 }
 
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	// user := auth.UserFromCtx(ctx)
-	// userID := user.GetID()
-
 	claims := auth.ClaimsFromCtx(ctx)
 
-	links, err := h.service.List(ctx, claims.UserID)
+	links, err := h.service.List(ctx, claims.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"data": links}, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, links, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -103,7 +99,7 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"data": tl}, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, tl, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -153,7 +149,7 @@ func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Location", strconv.FormatUint(tl.ID, 10))
-	if err := writeJSON(w, http.StatusCreated, envelope{"data": tl}, nil); err != nil {
+	if err := writeJSON(w, http.StatusCreated, tl, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }

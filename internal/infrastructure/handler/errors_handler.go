@@ -6,6 +6,14 @@ import (
 	"net/http"
 )
 
+// 422 - Unprocessable entity - when validation fails
+// 400 - Bad request
+// 401 - Unauthorized
+// 403 - Forbidden
+// 404 - Not found
+// 405 - Method not allowed
+// 500 - Internal server error
+
 type ErrorHandler struct {
 	logger *slog.Logger
 }
@@ -23,7 +31,10 @@ func (h *ErrorHandler) RateLimitExceededResponse(w http.ResponseWriter, r *http.
 }
 
 func (h *ErrorHandler) ErrorResponse(w http.ResponseWriter, r *http.Request, status int, msg interface{}) {
-	env := envelope{"error": msg}
+	env := envelope{
+		"status": "error",
+		"error":  envelope{"code": status, "message": msg},
+	}
 	if err := writeJSON(w, status, env, nil); err != nil {
 		h.logError(r, err)
 		w.WriteHeader(500)
@@ -34,10 +45,6 @@ func (h *ErrorHandler) ServerErrorResponse(w http.ResponseWriter, r *http.Reques
 	h.logError(r, err)
 	fmt.Println(err)
 	h.ErrorResponse(w, r, http.StatusInternalServerError, "the server encountered a problem and could not process your request")
-}
-
-func (h *ErrorHandler) UnauthorizedResponse(w http.ResponseWriter, r *http.Request) {
-	h.ErrorResponse(w, r, http.StatusUnauthorized, "unauthorized request")
 }
 
 func (h *ErrorHandler) FailedValidationResponse(w http.ResponseWriter, r *http.Request, errors map[string]string) {

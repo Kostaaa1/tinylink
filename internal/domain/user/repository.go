@@ -2,7 +2,13 @@ package user
 
 import (
 	"context"
+	"database/sql"
 )
+
+type db interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
 
 type UserRepository interface {
 	Insert(ctx context.Context, user *User) error

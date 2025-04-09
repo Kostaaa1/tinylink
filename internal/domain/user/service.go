@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -24,10 +25,9 @@ type Service struct {
 }
 
 func NewService(txProvider txProvider) *Service {
-	dbAdapters := txProvider.GetDbAdapters()
 	return &Service{
 		txProvider: txProvider,
-		user:       dbAdapters.UserRepository,
+		user:       txProvider.GetDbAdapters().UserRepository,
 	}
 }
 
@@ -57,27 +57,27 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 	return NewUserDTO(user), err
 }
 
-func (s *Service) GetUserFromCtx(ctx context.Context) (UserDTO, error) {
-	claims := auth.ClaimsFromCtx(ctx)
-	user, err := s.user.GetByEmail(ctx, claims.Email)
-	if err != nil {
-		return UserDTO{}, err
+func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, error) {
+	user := &User{
+		Email: req.Email,
+		Name:  req.Name,
 	}
-	return NewUserDTO(user), nil
-}
 
-func (s *Service) Register(ctx context.Context, userData *User) (UserDTO, error) {
+	if err := user.Password.Set(req.Password); err != nil {
+		return UserDTO{}, nil
+	}
+
 	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
-		fetched, err := adapters.UserRepository.GetByEmail(ctx, userData.Email)
+		fetched, err := adapters.UserRepository.GetByEmail(ctx, user.Email)
 		if err != nil {
 			if errors.Is(err, data.ErrRecordNotFound) {
-				return adapters.UserRepository.Insert(ctx, userData)
+				return adapters.UserRepository.Insert(ctx, user)
 			}
 			return err
 		}
 		if fetched != nil {
-			userData.ID = fetched.ID
-			return adapters.UserRepository.Update(ctx, userData)
+			user.ID = fetched.ID
+			return adapters.UserRepository.Update(ctx, user)
 		}
 		return ErrDuplicateEmail
 	})
@@ -86,7 +86,7 @@ func (s *Service) Register(ctx context.Context, userData *User) (UserDTO, error)
 		return UserDTO{}, nil
 	}
 
-	return NewUserDTO(userData), nil
+	return NewUserDTO(user), nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, error) {
@@ -96,10 +96,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, e
 	}
 
 	if len(userData.Password.Hash) > 0 {
-		matches, err := userData.Password.Matches(password)
-		if err != nil {
-			return UserDTO{}, err
-		}
+		matches, _ := userData.Password.Matches(password)
 		if !matches {
 			return UserDTO{}, ErrInvalidCredentials
 		}
@@ -108,4 +105,23 @@ func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, e
 	}
 
 	return NewUserDTO(userData), err
+}
+
+func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
+	claims := auth.ClaimsFromCtx(ctx)
+
+	id, err := strconv.ParseUint(claims.ID, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	user := &User{Email: claims.Email, ID: id}
+	if err := user.Password.Set(newPW); err != nil {
+		return err
+	}
+	if err := s.user.Update(ctx, user); err != nil {
+		return err
+	}
+
+	return nil
 }
