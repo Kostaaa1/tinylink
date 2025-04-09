@@ -71,7 +71,7 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	if err := h.service.ChangePassword(ctx, input.Password); err != nil {
-		if errors.Is(err, data.ErrRecordNotFound) {
+		if errors.Is(err, data.ErrNotFound) {
 			h.NotFoundResponse(w, r)
 			return
 		}
@@ -160,7 +160,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, user.ErrInvalidCredentials):
 			h.InvalidCredentialsResponse(w, r)
-		case errors.Is(err, data.ErrRecordNotFound):
+		case errors.Is(err, data.ErrNotFound):
 			h.NotFoundResponse(w, r)
 		case errors.Is(err, user.ErrNoUserPasswordSet):
 			h.BadRequestResponse(w, r, user.ErrNoUserPasswordSet)

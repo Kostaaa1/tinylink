@@ -8,8 +8,7 @@ import (
 type db interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	GetContext(ctx context.Context, dest any, query string, args ...any) error
-	SelectContext(ctx context.Context, dest any, query string, args ...any) error
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 type Repository interface {
@@ -27,6 +26,6 @@ type RedisRepository interface {
 
 type DBRepository interface {
 	Repository
-	IncrementUsageCount(ctx context.Context, alias string) error
+	IncrementUsageCount(ctx context.Context, rowID uint64) error
 	GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error)
 }

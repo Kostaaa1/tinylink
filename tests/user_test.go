@@ -1,4 +1,4 @@
-package user_test
+package tinylink_test
 
 // func TestUser(t *testing.T) {
 // 	err := exec.Command("rm", "-rf", "./tinylink.db").Run()

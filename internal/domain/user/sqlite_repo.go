@@ -46,7 +46,7 @@ func (r *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*Use
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrRecordNotFound
+			return nil, data.ErrNotFound
 		}
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrRecordNotFound
+			return nil, data.ErrNotFound
 		}
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func (r *SQLiteUserRepository) GetGoogleUser(ctx context.Context, email string) 
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrRecordNotFound
+			return nil, data.ErrNotFound
 		}
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (r *SQLiteUserRepository) Update(ctx context.Context, user *User) error {
 	if err != nil {
 		switch {
 		case err == sql.ErrNoRows:
-			return data.ErrRecordNotFound
+			return data.ErrNotFound
 		default:
 			return err
 		}

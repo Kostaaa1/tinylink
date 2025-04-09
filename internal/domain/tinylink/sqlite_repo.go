@@ -3,7 +3,6 @@ package tinylink
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -12,22 +11,6 @@ import (
 
 type TinylinkSQLRepository struct {
 	db db
-}
-
-type flatTL struct {
-	ID          uint64         `db:"id"`
-	Alias       string         `db:"alias"`
-	OriginalURL string         `db:"original_url"`
-	UserID      string         `db:"user_id"`
-	CreatedAt   int64          `db:"created_at"`
-	Private     bool           `db:"private"`
-	Domain      string         `db:"domain"`
-	UsageCount  int            `db:"usage_count"`
-	QRData      []byte         `db:"data"`
-	QRWidth     sql.NullString `db:"width"`
-	QRHeight    sql.NullString `db:"height"`
-	QRSize      sql.NullString `db:"size"`
-	QRMimeType  sql.NullString `db:"mimetype"`
 }
 
 func isUniqueConstraintErr(err error) bool {
@@ -56,7 +39,7 @@ func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error 
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return data.ErrRecordNotFound
+			return data.ErrNotFound
 		}
 		if isUniqueConstraintErr(err) {
 			return ErrAliasExists
@@ -89,29 +72,36 @@ func (s *TinylinkSQLRepository) Insert(ctx context.Context, tl *Tinylink) error 
 
 func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tinylink, error) {
 	query := `
-		SELECT 
-			t.id, t.alias, t.original_url, t.user_id, t.created_at, 
-			q.data, q.width, q.height, q.size, q.mime_type as mimetype
-		FROM tinylinks t
-		LEFT JOIN qrcodes q ON t.id = q.tinylink_id
-		WHERE t.user_id = ?
+		SELECT id, user_id, alias, original_url, is_private, usage_count, domain, created_at
+		FROM tinylinks
+		WHERE user_id = ?
 	`
 
-	tinylinks := []*Tinylink{}
-
-	var links []flatTL
-	if err := s.db.SelectContext(ctx, &links, query, userID); err != nil {
-		return tinylinks, err
+	rows, err := s.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
 	}
+	defer rows.Close()
 
-	for _, r := range links {
-		tl := &Tinylink{
-			ID:          r.ID,
-			Alias:       r.Alias,
-			UserID:      r.UserID,
-			OriginalURL: r.OriginalURL,
-			CreatedAt:   time.Unix(r.CreatedAt, 0),
+	tinylinks := []*Tinylink{}
+	for rows.Next() {
+		tl := &Tinylink{}
+
+		var createdAt int64
+		if err := rows.Scan(
+			&tl.ID,
+			&tl.UserID,
+			&tl.Alias,
+			&tl.OriginalURL,
+			&tl.Private,
+			&tl.UsageCount,
+			&tl.Domain,
+			&createdAt,
+		); err != nil {
+			return nil, err
 		}
+		tl.CreatedAt = time.Unix(createdAt, 0)
+
 		tinylinks = append(tinylinks, tl)
 	}
 
@@ -120,95 +110,62 @@ func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tin
 
 func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	query := `
-		SELECT
-			t.id, t.alias, t.original_url, t.user_id, t.created_at, 
-			q.data, q.width, q.height, q.size, q.mime_type as mimetype
-		FROM tinylinks t
-		LEFT JOIN qrcodes q ON t.id = q.tinylink_id
-		WHERE t.alias = ? AND t.is_private = 1
+		SELECT id, user_id, alias, original_url, is_private, usage_count, domain, created_at
+		FROM tinylinks
+		WHERE alias = ? AND is_private = 0
 	`
 
-	var flat flatTL
-	if err := s.db.GetContext(ctx, &flat, query, alias); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrRecordNotFound
-		}
+	tl := &Tinylink{}
+
+	var createdAt int64
+	if err := s.db.QueryRowContext(ctx, query, alias).Scan(
+		&tl.ID,
+		&tl.UserID,
+		&tl.Alias,
+		&tl.OriginalURL,
+		&tl.Private,
+		&tl.UsageCount,
+		&tl.Domain,
+		&createdAt,
+	); err != nil {
 		return nil, err
 	}
-
-	tl := &Tinylink{
-		ID:          flat.ID,
-		Alias:       flat.Alias,
-		OriginalURL: flat.OriginalURL,
-		UserID:      flat.UserID,
-		CreatedAt:   time.Unix(flat.CreatedAt, 0),
-	}
-
-	return tl, nil
-}
-
-func (s *TinylinkSQLRepository) GetTest(ctx context.Context, alias string) (*Tinylink, error) {
-	query := `
-		SELECT
-			t.id, t.alias, t.original_url, t.user_id, t.created_at, 
-			q.data, q.width, q.height, q.size, q.mime_type as mimetype
-		FROM tinylinks t
-		LEFT JOIN qrcodes q ON t.id = q.tinylink_id
-		WHERE t.alias = ? AND t.is_private = 1
-	`
-
-	var flat flatTL
-	if err := s.db.GetContext(ctx, &flat, query, alias); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrRecordNotFound
-		}
-		return nil, err
-	}
-
-	tl := &Tinylink{
-		ID:          flat.ID,
-		Alias:       flat.Alias,
-		OriginalURL: flat.OriginalURL,
-		UserID:      flat.UserID,
-		CreatedAt:   time.Unix(flat.CreatedAt, 0),
-	}
+	tl.CreatedAt = time.Unix(createdAt, 0)
 
 	return tl, nil
 }
 
 func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error) {
 	query := `
-		SELECT 
-			t.id, t.alias, t.original_url, t.user_id, t.created_at,
-			q.data, q.width, q.height, q.size, q.mime_type as mimetype
-		FROM tinylinks t
-		LEFT JOIN qrcodes q ON t.id = q.tinylink_id
-		WHERE t.alias = ?
+		SELECT id, user_id, alias, original_url, is_private, usage_count, domain, created_at
+		FROM tinylinks
+		WHERE alias = ? AND user_id = ?
 	`
 
-	var flat flatTL
-	if err := s.db.GetContext(ctx, &flat, query, alias); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrRecordNotFound
-		}
+	tl := &Tinylink{}
+
+	var createdAt int64
+	if err := s.db.QueryRowContext(ctx, query, alias, userID).Scan(
+		&tl.ID,
+		&tl.UserID,
+		&tl.Alias,
+		&tl.OriginalURL,
+		&tl.Private,
+		&tl.UsageCount,
+		&tl.Domain,
+		&createdAt,
+	); err != nil {
 		return nil, err
 	}
-
-	tl := &Tinylink{
-		ID:          flat.ID,
-		Alias:       flat.Alias,
-		OriginalURL: flat.OriginalURL,
-		UserID:      flat.UserID,
-		CreatedAt:   time.Unix(flat.CreatedAt, 0),
-	}
+	tl.CreatedAt = time.Unix(createdAt, 0)
 
 	return tl, nil
 }
 
-func (s *TinylinkSQLRepository) IncrementUsageCount(ctx context.Context, alias string) error {
+func (s *TinylinkSQLRepository) IncrementUsageCount(ctx context.Context, rowId uint64) error {
 	query := "UPDATE tinylinks SET usage_count = usage_count + 1 WHERE id = ?"
 
-	res, err := s.db.ExecContext(ctx, query, alias)
+	res, err := s.db.ExecContext(ctx, query, rowId)
 	if err != nil {
 		return err
 	}
@@ -219,7 +176,7 @@ func (s *TinylinkSQLRepository) IncrementUsageCount(ctx context.Context, alias s
 	}
 
 	if rows == 0 {
-		return data.ErrRecordNotFound
+		return data.ErrNotFound
 	}
 
 	return nil
@@ -238,7 +195,7 @@ func (s *TinylinkSQLRepository) Delete(ctx context.Context, userID, alias string
 	}
 
 	if rowsAffected == 0 {
-		return data.ErrRecordNotFound
+		return data.ErrNotFound
 	}
 
 	return nil

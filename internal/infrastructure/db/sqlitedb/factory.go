@@ -46,9 +46,9 @@ func StartDB(conf config.SQLConfig) (*sqlx.DB, error) {
 	}
 
 	// Enable Write-Ahead Logging ?
-	if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
-		log.Fatal("Failed to enable foreign keys:", err)
-	}
+	// if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+	// 	log.Fatal("Failed to enable foreign keys:", err)
+	// }
 
 	// _, b, _, _ := runtime.Caller(0)
 	// basePath := filepath.Join(filepath.Dir(b), "../../../../sql/tables.sql")

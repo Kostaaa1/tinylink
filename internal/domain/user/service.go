@@ -41,7 +41,7 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
 		fetchedUser, err := adapters.UserRepository.GetByEmail(ctx, user.Email)
 		if err != nil {
-			if errors.Is(err, data.ErrRecordNotFound) {
+			if errors.Is(err, data.ErrNotFound) {
 				if err := adapters.UserRepository.Insert(ctx, user); err != nil {
 					if !errors.Is(err, data.ErrRecordExists) {
 						return fmt.Errorf("failed to insert user: %w", err)
@@ -70,7 +70,7 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, 
 	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
 		fetched, err := adapters.UserRepository.GetByEmail(ctx, user.Email)
 		if err != nil {
-			if errors.Is(err, data.ErrRecordNotFound) {
+			if errors.Is(err, data.ErrNotFound) {
 				return adapters.UserRepository.Insert(ctx, user)
 			}
 			return err

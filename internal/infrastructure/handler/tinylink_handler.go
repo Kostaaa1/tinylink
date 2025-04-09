@@ -31,9 +31,10 @@ func (h *TinylinkHandler) RegisterRoutes(r *mux.Router) {
 	tinylinkRouter := r.PathPrefix("/tinylink").Subrouter()
 	tinylinkRouter.Use(auth.Middleware)
 	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
-	tinylinkRouter.HandleFunc("", h.Create).Methods("POST")
 	tinylinkRouter.HandleFunc("", h.List).Methods("GET")
 	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
+
+	r.HandleFunc("/tinylink/create", h.Create).Methods("POST")
 	r.HandleFunc("/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 }
 
@@ -87,7 +88,7 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	tl, err := h.service.Update(ctx, req.ID, req.Alias, req.Domain, req.Private)
 	if err != nil {
 		switch {
-		case errors.Is(err, data.ErrRecordNotFound):
+		case errors.Is(err, data.ErrNotFound):
 			h.NotFoundResponse(w, r)
 		case errors.Is(err, tinylink.ErrURLExists):
 			h.ErrorResponse(w, r, http.StatusConflict, err.Error())
@@ -105,7 +106,7 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 type InsertTinylinkRequest struct {
-	OriginalURL string `json:"original_url"`
+	OriginalURL string `json:"url"`
 	Alias       string `json:"alias"`
 	Domain      string `json:"domain"`
 	Private     bool   `json:"private"`
@@ -183,7 +184,7 @@ func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	// alias := mux.Vars(r)["alias"]
 	// if err := h.service.Delete(r.Context(), userId, alias); err != nil {
 	// 	switch {
-	// 	case errors.Is(err, data.ErrRecordNotFound):
+	// 	case errors.Is(err, data.ErrNotFound):
 	// 		h.NotFoundResponse(w, r)
 	// 	default:
 	// 		h.ServerErrorResponse(w, r, err)

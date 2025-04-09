@@ -2,8 +2,10 @@ package tinylink
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 )
 
 type DBAdapters struct {
@@ -81,35 +83,51 @@ func (s *Service) Update(ctx context.Context, id uint64, alias, domain string, p
 
 // Auth user - can access public/private
 // Non auth user - can access only public
-// IF authenticated,
+// IF authenticated, first check its record by user id (for private records)
 // If not, check public redis cache, if not found get from db. It found increment usage count
 func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	claims := auth.ClaimsFromCtx(ctx)
 	userID := claims.ID
 
-	var err error
 	var tl *Tinylink
+	var err error
 
-	if userID == "" {
+	err = s.txProvider.WithTransaction(func(dbAdapters DBAdapters) error {
+		if userID != "" {
+			if tl, err = dbAdapters.TinylinkDBRepository.GetByUserID(ctx, userID, alias); err == nil {
+				if err := dbAdapters.TinylinkDBRepository.IncrementUsageCount(ctx, tl.ID); err != nil {
+					return err
+				}
+				return nil
+			} else if !errors.Is(err, data.ErrNotFound) {
+				return err
+			}
+		}
+
 		tl, err = s.tinylinkRedis.Get(ctx, alias)
-		if err != nil {
-			return nil, err
+		if err != nil && !errors.Is(err, data.ErrNotFound) {
+			return err
 		}
-	} else {
-		tl, err = s.tinylinkDb.GetByUserID(ctx, userID, alias)
-		if err != nil {
-			return nil, err
-		}
-	}
 
-	if tl == nil {
-		tl, err = s.tinylinkDb.Get(ctx, alias)
-		if err != nil {
-			return nil, err
+		if tl == nil {
+			tl, err = dbAdapters.TinylinkDBRepository.Get(ctx, alias)
+			if err != nil {
+				return err // if lastly not found, include errNotFOund in error return
+			}
+			if err := s.tinylinkRedis.Insert(ctx, tl); err != nil {
+				return err
+			}
 		}
-		if err := s.tinylinkDb.IncrementUsageCount(ctx, alias); err != nil {
-			return nil, err
+
+		if err := dbAdapters.TinylinkDBRepository.IncrementUsageCount(ctx, tl.ID); err != nil {
+			return err
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	return tl, nil
