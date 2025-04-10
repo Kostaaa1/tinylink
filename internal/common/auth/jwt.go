@@ -2,8 +2,10 @@ package auth
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,16 +16,26 @@ var (
 )
 
 type Claims struct {
-	ID    string
-	Email string
+	UserID string
+	Email  string
 	jwt.RegisteredClaims
+}
+
+func GetClaimsFromRequest(r *http.Request) (*Claims, error) {
+	bearer := r.Header.Get("Authorization")
+	token := strings.TrimPrefix(bearer, "Bearer ")
+	if token == "" {
+		cookie, _ := r.Cookie(SessionKey)
+		token = cookie.Value
+	}
+	return VerifyJWT(token)
 }
 
 func GenerateJWT(userID uint64, email string) (string, error) {
 	id := strconv.FormatUint(userID, 10)
 	claims := &Claims{
-		ID:    id,
-		Email: email,
+		UserID: id,
+		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

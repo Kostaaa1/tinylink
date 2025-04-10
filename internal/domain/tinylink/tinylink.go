@@ -14,42 +14,54 @@ var (
 )
 
 type Tinylink struct {
+	ID          uint64 `json:"id"`
+	Alias       string `json:"alias"`
+	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id"`
+	Private     bool   `json:"private"`
+	UsageCount  int    `json:"usage_count"`
+	Domain      string `json:"domain"`
+	Version     uint64 `json:"version"`
+	LastVisited int64  `json:"last_visited"`
+	ExpiresAt   int64  `json:"expires_at"`
+	CreatedAt   int64  `json:"created_at"`
+}
+
+type TinylinkDTO struct {
 	ID          uint64    `json:"id"`
 	Alias       string    `json:"alias"`
 	OriginalURL string    `json:"original_url"`
 	UserID      string    `json:"user_id"`
 	Private     bool      `json:"private"`
+	UsageCount  int       `json:"usage_count"`
+	Domain      string    `json:"domain"`
+	Version     uint64    `json:"version"`
 	LastVisited time.Time `json:"last_visited"`
 	ExpiresAt   time.Time `json:"expires_at"`
 	CreatedAt   time.Time `json:"created_at"`
-	UsageCount  int       `json:"usage_count,omitempty"`
-	Domain      string    `json:"domain,omitempty"`
 }
 
-func MapToTinylink(data map[string]string) (*Tinylink, error) {
-	url, err := url.Parse(data["url"])
-	if err != nil {
-		return nil, err
+func MapToTinylinkDTO(tl *Tinylink) TinylinkDTO {
+	return TinylinkDTO{
+		ID:          tl.ID,
+		Alias:       tl.Alias,
+		OriginalURL: tl.OriginalURL,
+		UserID:      tl.UserID,
+		Private:     tl.Private,
+		UsageCount:  tl.UsageCount,
+		Domain:      tl.Domain,
+		Version:     tl.Version,
+		CreatedAt:   time.Unix(tl.CreatedAt, 0),
+		LastVisited: time.Unix(tl.LastVisited, 0),
+		ExpiresAt:   time.Unix(tl.ExpiresAt, 0),
 	}
-	return &Tinylink{
-		Alias:       data["alias"],
-		OriginalURL: url.String(),
-	}, nil
 }
 
 type InsertTinylinkRequest struct {
-	OriginalURL string `json:"original_url"`
+	OriginalURL string `json:"url"`
 	Alias       string `json:"alias"`
 	Domain      string `json:"domain"`
 	Private     bool   `json:"private"`
-}
-
-func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
-	v.Check(req.OriginalURL != "", "url", "must be provided")
-	_, err := url.ParseRequestURI(req.OriginalURL)
-	v.Check(err == nil, "url", "invalid url format")
-	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
-	return v.Valid()
 }
 
 type UpdateTinylinkRequest struct {
@@ -62,6 +74,14 @@ type UpdateTinylinkRequest struct {
 func (req *UpdateTinylinkRequest) IsValid(v *validator.Validator) bool {
 	v.Check(req.ID != 0, "id", "must be provided")
 	v.Check(req.Alias != "", "alias", "must be provided")
+	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
+	return v.Valid()
+}
+
+func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
+	v.Check(req.OriginalURL != "", "url", "must be provided")
+	_, err := url.ParseRequestURI(req.OriginalURL)
+	v.Check(err == nil, "url", "invalid url format")
 	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
 	return v.Valid()
 }

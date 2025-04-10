@@ -48,32 +48,48 @@ func (s *Service) getStore(ctx context.Context) Repository {
 	return s.tinylinkRedis
 }
 
-func (s *Service) List(ctx context.Context, userID string) ([]*Tinylink, error) {
-	return nil, nil
+func (s *Service) List(ctx context.Context, claims *auth.Claims) ([]*Tinylink, error) {
+	return s.tinylinkDb.List(ctx, claims.UserID)
 }
 
-func (s *Service) Insert(ctx context.Context, alias, originalURL, domain string, private bool) (*Tinylink, error) {
-	claims := auth.ClaimsFromCtx(ctx)
-	newTl := &Tinylink{
-		UserID:      claims.ID,
-		OriginalURL: originalURL,
-		Alias:       alias,
-		Domain:      domain,
-		Private:     private,
-		UsageCount:  0,
+func (s *Service) Insert(ctx context.Context, claims *auth.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
+	tl := &Tinylink{
+		OriginalURL: req.OriginalURL,
+		Alias:       req.Alias,
+		Domain:      req.Domain,
+		Private:     req.Private,
+		UserID:      claims.UserID,
 	}
-	if err := s.getStore(ctx).Insert(ctx, newTl); err != nil {
+
+	if tl.Alias == "" {
+		alias, err := s.tinylinkRedis.GenerateAlias(ctx)
+		if err != nil {
+			return nil, err
+		}
+		tl.Alias = alias
+	}
+
+	var err error
+	if tl.UserID != "" {
+		err = s.tinylinkDb.Insert(ctx, tl)
+	} else {
+		err = s.tinylinkRedis.Insert(ctx, tl)
+	}
+
+	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	return tl, nil
 }
 
-func (s *Service) Update(ctx context.Context, id uint64, alias, domain string, private bool) (*Tinylink, error) {
+func (s *Service) Update(ctx context.Context, claims *auth.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
-		ID:      id,
-		Alias:   alias,
-		Domain:  domain,
-		Private: private,
+		ID:      req.ID,
+		Alias:   req.Alias,
+		Domain:  req.Domain,
+		Private: req.Private,
+		UserID:  claims.UserID,
 	}
 	if err := s.getStore(ctx).Update(ctx, tl); err != nil {
 		return nil, err
@@ -81,45 +97,43 @@ func (s *Service) Update(ctx context.Context, id uint64, alias, domain string, p
 	return tl, nil
 }
 
-// Auth user - can access public/private
-// Non auth user - can access only public
-// IF authenticated, first check its record by user id (for private records)
-// If not, check public redis cache, if not found get from db. It found increment usage count
-func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
-	claims := auth.ClaimsFromCtx(ctx)
-	userID := claims.ID
+func (s *Service) GetPersonal(ctx context.Context, claims *auth.Claims, alias string) (*Tinylink, error) {
+	var tl *Tinylink
 
+	err := s.txProvider.WithTransaction(func(dbAdapters DBAdapters) error {
+		tl, err := dbAdapters.TinylinkDBRepository.GetByUserID(ctx, claims.UserID, alias)
+		if err != nil {
+			return err
+		}
+		return dbAdapters.TinylinkDBRepository.UpdateUsage(ctx, tl)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return tl, nil
+}
+
+func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	var tl *Tinylink
 	var err error
 
 	err = s.txProvider.WithTransaction(func(dbAdapters DBAdapters) error {
-		if userID != "" {
-			if tl, err = dbAdapters.TinylinkDBRepository.GetByUserID(ctx, userID, alias); err == nil {
-				if err := dbAdapters.TinylinkDBRepository.IncrementUsageCount(ctx, tl.ID); err != nil {
-					return err
-				}
-				return nil
-			} else if !errors.Is(err, data.ErrNotFound) {
-				return err
-			}
-		}
-
 		tl, err = s.tinylinkRedis.Get(ctx, alias)
 		if err != nil && !errors.Is(err, data.ErrNotFound) {
 			return err
 		}
 
 		if tl == nil {
-			tl, err = dbAdapters.TinylinkDBRepository.Get(ctx, alias)
-			if err != nil {
-				return err // if lastly not found, include errNotFOund in error return
+			if tl, err = dbAdapters.TinylinkDBRepository.Get(ctx, alias); err != nil {
+				return err
 			}
 			if err := s.tinylinkRedis.Insert(ctx, tl); err != nil {
 				return err
 			}
 		}
 
-		if err := dbAdapters.TinylinkDBRepository.IncrementUsageCount(ctx, tl.ID); err != nil {
+		if err := dbAdapters.TinylinkDBRepository.UpdateUsage(ctx, tl); err != nil {
 			return err
 		}
 
@@ -133,6 +147,6 @@ func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	return tl, nil
 }
 
-func (s *Service) Delete(ctx context.Context, userID, alias string) error {
-	return s.getStore(ctx).Delete(ctx, userID, alias)
+func (s *Service) Delete(ctx context.Context, claims *auth.Claims, alias string) error {
+	return s.getStore(ctx).Delete(ctx, claims.UserID, alias)
 }

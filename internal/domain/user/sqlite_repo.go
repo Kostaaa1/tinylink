@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/mattn/go-sqlite3"
@@ -50,7 +49,7 @@ func (r *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*Use
 		}
 		return nil, err
 	}
-	userData.CreatedAt = time.Unix(createdAt, 0)
+	// userData.CreatedAt = time.Unix(createdAt, 0)
 
 	if gID.Valid {
 		userData.Google = &GoogleUser{
@@ -62,9 +61,7 @@ func (r *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*Use
 			Name:          gName.String,
 			GivenName:     gGivenName.String,
 			Picture:       gPicture.String,
-		}
-		if googlCreatedAt.Valid {
-			userData.Google.CreatedAt = time.Unix(googlCreatedAt.Int64, 0)
+			CreatedAt:     googlCreatedAt.Int64,
 		}
 	}
 
@@ -108,7 +105,7 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 		}
 		return nil, err
 	}
-	userData.CreatedAt = time.Unix(createdAt, 0)
+	// userData.CreatedAt = time.Unix(createdAt, 0)
 
 	if gID.Valid {
 		userData.Google = &GoogleUser{
@@ -120,10 +117,9 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 			Name:          gName.String,
 			GivenName:     gGivenName.String,
 			Picture:       gPicture.String,
+			CreatedAt:     googlCreatedAt.Int64,
 		}
-		if googlCreatedAt.Valid {
-			userData.Google.CreatedAt = time.Unix(googlCreatedAt.Int64, 0)
-		}
+
 	}
 
 	return userData, err
@@ -134,7 +130,6 @@ func (r *SQLiteUserRepository) GetGoogleUser(ctx context.Context, email string) 
 		FROM google_users_data WHERE email = ?`
 
 	var gUser GoogleUser
-	var createdAt int64
 	var isVerified sql.NullBool
 
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
@@ -146,7 +141,7 @@ func (r *SQLiteUserRepository) GetGoogleUser(ctx context.Context, email string) 
 		&gUser.FamilyName,
 		&gUser.Picture,
 		&isVerified,
-		&createdAt,
+		&gUser.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -155,7 +150,7 @@ func (r *SQLiteUserRepository) GetGoogleUser(ctx context.Context, email string) 
 		return nil, err
 	}
 	gUser.VerifiedEmail = isVerified.Bool
-	gUser.CreatedAt = time.Unix(createdAt, 0)
+
 	return &gUser, nil
 }
 
@@ -175,14 +170,12 @@ func (r *SQLiteUserRepository) Insert(ctx context.Context, user *User) error {
 
 	args := []interface{}{user.Name, user.Email, user.Password.Hash}
 
-	var createdAt int64
-	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &createdAt, &user.Version); err != nil {
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version); err != nil {
 		if isUniqueConstraintErr(err) {
 			return data.ErrRecordExists
 		}
 		return err
 	}
-	user.CreatedAt = time.Unix(createdAt, 0)
 
 	if user.Google != nil {
 		query := `INSERT INTO google_users_data
@@ -201,14 +194,12 @@ func (r *SQLiteUserRepository) Insert(ctx context.Context, user *User) error {
 			user.Google.VerifiedEmail,
 		}
 
-		var googleCreatedAt int64
-		if err := r.db.QueryRowContext(ctx, query, args...).Scan(&googleCreatedAt); err != nil {
+		if err := r.db.QueryRowContext(ctx, query, args...).Scan(&user.Google.CreatedAt); err != nil {
 			if isUniqueConstraintErr(err) {
 				return data.ErrRecordExists
 			}
 			return err
 		}
-		user.Google.CreatedAt = time.Unix(googleCreatedAt, 0)
 	}
 
 	return nil
@@ -231,14 +222,12 @@ func (r *SQLiteUserRepository) InsertGoogleUser(ctx context.Context, googleUser 
 		googleUser.VerifiedEmail,
 	}
 
-	var googleCreatedAt int64
-	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&googleCreatedAt); err != nil {
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&googleUser.CreatedAt); err != nil {
 		if isUniqueConstraintErr(err) {
 			return data.ErrRecordExists
 		}
 		return err
 	}
-	googleUser.CreatedAt = time.Unix(googleCreatedAt, 0)
 
 	return nil
 }

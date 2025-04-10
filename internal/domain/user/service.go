@@ -110,7 +110,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, e
 func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
 	claims := auth.ClaimsFromCtx(ctx)
 
-	id, err := strconv.ParseUint(claims.ID, 10, 64)
+	id, err := strconv.ParseUint(claims.UserID, 10, 64)
 	if err != nil {
 		return err
 	}

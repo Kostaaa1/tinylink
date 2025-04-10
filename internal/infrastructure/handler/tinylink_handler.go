@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/auth"
@@ -34,8 +34,12 @@ func (h *TinylinkHandler) RegisterRoutes(r *mux.Router) {
 	tinylinkRouter.HandleFunc("", h.List).Methods("GET")
 	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 
-	r.HandleFunc("/tinylink/create", h.Create).Methods("POST")
+	protectedRouter := r.PathPrefix("").Subrouter()
+	protectedRouter.Use(auth.Middleware)
+	protectedRouter.HandleFunc("/p/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
+
 	r.HandleFunc("/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
+	r.HandleFunc("/tinylink/create", h.Create).Methods("POST")
 }
 
 func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +48,7 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	claims := auth.ClaimsFromCtx(ctx)
 
-	links, err := h.service.List(ctx, claims.ID)
+	links, err := h.service.List(ctx, claims)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -55,22 +59,8 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type UpdateTinylinkRequest struct {
-	ID      uint64 `json:"id"`
-	Alias   string `json:"alias"`
-	Private bool   `json:"private"`
-	Domain  string `json:"domain"`
-}
-
-func (req *UpdateTinylinkRequest) IsValid(v *validator.Validator) bool {
-	v.Check(req.ID != 0, "id", "must be provided")
-	v.Check(req.Alias != "", "alias", "must be provided")
-	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
-	return v.Valid()
-}
-
 func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var req UpdateTinylinkRequest
+	var req tinylink.UpdateTinylinkRequest
 	if err := readJSON(r, &req); err != nil {
 		h.BadRequestResponse(w, r, err)
 		return
@@ -85,7 +75,9 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	tl, err := h.service.Update(ctx, req.ID, req.Alias, req.Domain, req.Private)
+	claims := auth.ClaimsFromCtx(ctx)
+
+	tl, err := h.service.Update(ctx, claims, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrNotFound):
@@ -105,23 +97,8 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type InsertTinylinkRequest struct {
-	OriginalURL string `json:"url"`
-	Alias       string `json:"alias"`
-	Domain      string `json:"domain"`
-	Private     bool   `json:"private"`
-}
-
-func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
-	v.Check(req.OriginalURL != "", "url", "must be provided")
-	_, err := url.ParseRequestURI(req.OriginalURL)
-	v.Check(err == nil, "url", "invalid url format")
-	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
-	return v.Valid()
-}
-
 func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req InsertTinylinkRequest
+	var req tinylink.InsertTinylinkRequest
 	if err := readJSON(r, &req); err != nil {
 		h.BadRequestResponse(w, r, err)
 		return
@@ -136,7 +113,13 @@ func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	tl, err := h.service.Insert(ctx, req.Alias, req.OriginalURL, req.Domain, req.Private)
+	claims, err := auth.GetClaimsFromRequest(r)
+	if err != nil {
+		h.UnauthorizedResponse(w, r)
+		return
+	}
+
+	tl, err := h.service.Insert(ctx, claims, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, tinylink.ErrURLExists):
@@ -160,10 +143,28 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	alias := mux.Vars(r)["alias"]
-	tl, err := h.service.Get(ctx, alias)
-	if err != nil {
-		h.ServerErrorResponse(w, r, err)
-		return
+
+	var tl *tinylink.Tinylink
+	var err error
+
+	if strings.HasPrefix(r.URL.Path, "/p/") {
+		claims := auth.ClaimsFromCtx(ctx)
+		if claims == nil {
+			h.UnauthorizedResponse(w, r)
+			return
+		}
+
+		tl, err = h.service.GetPersonal(ctx, claims, alias)
+		if err != nil {
+			h.ServerErrorResponse(w, r, err)
+			return
+		}
+	} else {
+		tl, err = h.service.Get(ctx, alias)
+		if err != nil {
+			h.ServerErrorResponse(w, r, err)
+			return
+		}
 	}
 
 	w.Header().Set("Location", tl.OriginalURL)
@@ -171,28 +172,23 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	// ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	// defer cancel()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
+	defer cancel()
 
-	// user := auth.UserFromCtx(ctx)
-	// userId := user.GetID()
-	// if userId == "" {
-	// 	h.UnauthorizedResponse(w, r)
-	// 	return
-	// }
+	claims := auth.ClaimsFromCtx(ctx)
 
-	// alias := mux.Vars(r)["alias"]
-	// if err := h.service.Delete(r.Context(), userId, alias); err != nil {
-	// 	switch {
-	// 	case errors.Is(err, data.ErrNotFound):
-	// 		h.NotFoundResponse(w, r)
-	// 	default:
-	// 		h.ServerErrorResponse(w, r, err)
-	// 	}
-	// 	return
-	// }
+	alias := mux.Vars(r)["alias"]
+	if err := h.service.Delete(r.Context(), claims, alias); err != nil {
+		switch {
+		case errors.Is(err, data.ErrNotFound):
+			h.NotFoundResponse(w, r)
+		default:
+			h.ServerErrorResponse(w, r, err)
+		}
+		return
+	}
 
-	// if err := writeJSON(w, http.StatusOK, envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
-	// 	h.ServerErrorResponse(w, r, err)
-	// }
+	if err := writeJSON(w, http.StatusOK, envelope{"msg": "tinylink succesfully deleted"}, nil); err != nil {
+		h.ServerErrorResponse(w, r, err)
+	}
 }

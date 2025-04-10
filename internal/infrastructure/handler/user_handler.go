@@ -86,9 +86,7 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) HandleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("CALLED")
 	url := h.oauth2Config.AuthCodeURL("random-state", oauth2.AccessTypeOnline)
-	fmt.Println("REDIRECTING:::::\n\n", url)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -187,19 +185,6 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		h.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	// userData := &user.User{
-	// 	Name:  req.Name,
-	// 	Email: req.Email,
-	// }
-	// err := userData.Password.Set(req.Password)
-	// if err != nil {
-	// 	h.ServerErrorResponse(w, r, err)
-	// 	return
-	// }
-	// if user.ValidateUser(v, userData); !v.Valid() {
-	// 	return
-	// }
 
 	v := validator.New()
 	user.ValidateEmail(v, req.Email)

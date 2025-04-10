@@ -20,7 +20,7 @@ func NewUserDTO(user *User) UserDTO {
 		ID:        user.ID,
 		Email:     user.Email,
 		Name:      user.Name,
-		CreatedAt: user.CreatedAt,
+		CreatedAt: time.Unix(user.CreatedAt, 0),
 	}
 	if user.Google != nil {
 		dto.Google = &GoogleUserDTO{
@@ -30,7 +30,7 @@ func NewUserDTO(user *User) UserDTO {
 			FamilyName:    user.Google.FamilyName,
 			GivenName:     user.Google.GivenName,
 			VerifiedEmail: user.Google.VerifiedEmail,
-			CreatedAt:     user.Google.CreatedAt,
+			CreatedAt:     time.Unix(user.Google.CreatedAt, 0),
 		}
 	}
 	return dto
@@ -55,15 +55,15 @@ type GoogleUserDTO struct {
 }
 
 type GoogleUser struct {
-	UserID        uint64    `json:"-"`
-	ID            string    `json:"id"`
-	Email         string    `json:"email"`
-	VerifiedEmail bool      `json:"is_verified"`
-	Name          string    `json:"name"`
-	GivenName     string    `json:"given_name"`
-	FamilyName    string    `json:"family_name"`
-	Picture       string    `json:"picture"`
-	CreatedAt     time.Time `json:"created_at"`
+	UserID        uint64 `json:"-"`
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"is_verified"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+	CreatedAt     int64  `json:"created_at"`
 }
 
 type User struct {
@@ -71,7 +71,7 @@ type User struct {
 	Name      string      `json:"name"`
 	Email     string      `json:"email"`
 	Password  password    `json:"-"`
-	CreatedAt time.Time   `json:"created_at"`
+	CreatedAt int64       `json:"created_at"`
 	Version   int         `json:"version"`
 	Google    *GoogleUser `json:"google"`
 }

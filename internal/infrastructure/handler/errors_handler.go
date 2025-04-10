@@ -59,6 +59,10 @@ func (h *ErrorHandler) InvalidCredentialsResponse(w http.ResponseWriter, r *http
 	h.ErrorResponse(w, r, http.StatusUnauthorized, "invalid authentication credentials")
 }
 
+func (h *ErrorHandler) UnauthorizedResponse(w http.ResponseWriter, r *http.Request) {
+	h.ErrorResponse(w, r, http.StatusUnauthorized, "unauthorized request")
+}
+
 func (h *ErrorHandler) NotFoundResponse(w http.ResponseWriter, r *http.Request) {
 	h.ErrorResponse(w, r, http.StatusNotFound, "the requested resource could not be found")
 }

@@ -3,7 +3,6 @@ package tinylink
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/mattn/go-sqlite3"
@@ -23,19 +22,12 @@ func isUniqueConstraintErr(err error) bool {
 }
 
 func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error {
-	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ? WHERE id = ? 
-	RETURNING user_id, original_url, usage_count, domain, created_at`
+	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ?, version = version + 1, expires_at = ? 
+	WHERE id = ? AND user_id = ?
+	RETURNING version`
 
-	args := []interface{}{tl.Alias, tl.Domain, tl.Private, tl.ID}
-	var createdAt int64
-	err := s.db.QueryRowContext(ctx, query, args...).Scan(
-		&tl.UserID,
-		&tl.OriginalURL,
-		&tl.UsageCount,
-		&tl.Domain,
-		&createdAt,
-	)
-	tl.CreatedAt = time.Unix(createdAt, 0)
+	args := []interface{}{tl.Alias, tl.Domain, tl.Private, tl.ExpiresAt, tl.ID, tl.UserID}
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.Version)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -53,26 +45,24 @@ func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error 
 func (s *TinylinkSQLRepository) Insert(ctx context.Context, tl *Tinylink) error {
 	query := `INSERT INTO tinylinks (user_id, alias, original_url, domain, is_private) 
 		VALUES (?, ?, ?, ?, ?)
-		RETURNING id, created_at`
+		RETURNING id, created_at, version`
 
 	args := []interface{}{tl.UserID, tl.Alias, tl.OriginalURL, tl.Domain, tl.Private}
 
-	var createdAt int64
-	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.ID, &createdAt)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.ID, &tl.CreatedAt, &tl.Version)
 	if err != nil {
 		if isUniqueConstraintErr(err) {
 			return ErrAliasExists
 		}
 		return err
 	}
-	tl.CreatedAt = time.Unix(createdAt, 0)
 
 	return nil
 }
 
 func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tinylink, error) {
 	query := `
-		SELECT id, user_id, alias, original_url, is_private, usage_count, domain, created_at
+		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited 
 		FROM tinylinks
 		WHERE user_id = ?
 	`
@@ -84,24 +74,24 @@ func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tin
 	defer rows.Close()
 
 	tinylinks := []*Tinylink{}
+
 	for rows.Next() {
 		tl := &Tinylink{}
-
-		var createdAt int64
 		if err := rows.Scan(
 			&tl.ID,
-			&tl.UserID,
 			&tl.Alias,
 			&tl.OriginalURL,
+			&tl.UserID,
 			&tl.Private,
 			&tl.UsageCount,
 			&tl.Domain,
-			&createdAt,
+			&tl.Version,
+			&tl.CreatedAt,
+			&tl.ExpiresAt,
+			&tl.LastVisited,
 		); err != nil {
 			return nil, err
 		}
-		tl.CreatedAt = time.Unix(createdAt, 0)
-
 		tinylinks = append(tinylinks, tl)
 	}
 
@@ -110,73 +100,80 @@ func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tin
 
 func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	query := `
-		SELECT id, user_id, alias, original_url, is_private, usage_count, domain, created_at
+		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited
 		FROM tinylinks
 		WHERE alias = ? AND is_private = 0
 	`
 
 	tl := &Tinylink{}
 
-	var createdAt int64
 	if err := s.db.QueryRowContext(ctx, query, alias).Scan(
 		&tl.ID,
-		&tl.UserID,
 		&tl.Alias,
 		&tl.OriginalURL,
+		&tl.UserID,
 		&tl.Private,
 		&tl.UsageCount,
 		&tl.Domain,
-		&createdAt,
+		&tl.Version,
+		&tl.CreatedAt,
+		&tl.ExpiresAt,
+		&tl.LastVisited,
 	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, data.ErrNotFound
+		}
 		return nil, err
 	}
-	tl.CreatedAt = time.Unix(createdAt, 0)
 
 	return tl, nil
 }
 
 func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error) {
 	query := `
-		SELECT id, user_id, alias, original_url, is_private, usage_count, domain, created_at
+		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited
 		FROM tinylinks
 		WHERE alias = ? AND user_id = ?
 	`
 
 	tl := &Tinylink{}
-
-	var createdAt int64
 	if err := s.db.QueryRowContext(ctx, query, alias, userID).Scan(
 		&tl.ID,
-		&tl.UserID,
 		&tl.Alias,
 		&tl.OriginalURL,
+		&tl.UserID,
 		&tl.Private,
 		&tl.UsageCount,
 		&tl.Domain,
-		&createdAt,
+		&tl.Version,
+		&tl.CreatedAt,
+		&tl.ExpiresAt,
+		&tl.LastVisited,
 	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, data.ErrNotFound
+		}
 		return nil, err
 	}
-	tl.CreatedAt = time.Unix(createdAt, 0)
 
 	return tl, nil
 }
 
-func (s *TinylinkSQLRepository) IncrementUsageCount(ctx context.Context, rowId uint64) error {
-	query := "UPDATE tinylinks SET usage_count = usage_count + 1 WHERE id = ?"
+func (s *TinylinkSQLRepository) UpdateUsage(ctx context.Context, tl *Tinylink) error {
+	query := `UPDATE tinylinks 
+	SET usage_count = usage_count + 1, last_visited = strftime('%s', 'now')
+	WHERE id = ?
+	RETURNING usage_count, last_visited`
 
-	res, err := s.db.ExecContext(ctx, query, rowId)
+	err := s.db.QueryRowContext(ctx, query, tl.ID).Scan(
+		&tl.UsageCount,
+		&tl.LastVisited,
+	)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return data.ErrNotFound
+		}
 		return err
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rows == 0 {
-		return data.ErrNotFound
 	}
 
 	return nil
@@ -188,12 +185,10 @@ func (s *TinylinkSQLRepository) Delete(ctx context.Context, userID, alias string
 	if err != nil {
 		return err
 	}
-
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
-
 	if rowsAffected == 0 {
 		return data.ErrNotFound
 	}

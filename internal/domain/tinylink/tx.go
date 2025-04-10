@@ -3,7 +3,6 @@ package tinylink
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
@@ -15,7 +14,6 @@ type RepositoryProvider struct {
 }
 
 func NewRepositoryProvider(db *sqlx.DB, client *redis.Client) *RepositoryProvider {
-	fmt.Println(db)
 	return &RepositoryProvider{
 		db:     db,
 		client: client,

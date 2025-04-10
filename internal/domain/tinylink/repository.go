@@ -14,18 +14,18 @@ type db interface {
 type Repository interface {
 	List(ctx context.Context, userID string) ([]*Tinylink, error)
 	Delete(ctx context.Context, userID, id string) error
+	Get(ctx context.Context, alias string) (*Tinylink, error)
 	Insert(ctx context.Context, tl *Tinylink) error
 	Update(ctx context.Context, tl *Tinylink) error
-	Get(ctx context.Context, alias string) (*Tinylink, error)
 }
 
 type RedisRepository interface {
 	Repository
-	GenerateAlias(ctx context.Context, n int) (string, error)
+	GenerateAlias(ctx context.Context) (string, error)
 }
 
 type DBRepository interface {
 	Repository
-	IncrementUsageCount(ctx context.Context, rowID uint64) error
+	UpdateUsage(ctx context.Context, tl *Tinylink) error
 	GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error)
 }

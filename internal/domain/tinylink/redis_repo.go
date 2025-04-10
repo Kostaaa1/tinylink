@@ -34,21 +34,28 @@ func randStr(n int) string {
 	return str.String()
 }
 
-func (r *TinylinkRedisRepository) GenerateAlias(ctx context.Context, n int) (string, error) {
+func (r *TinylinkRedisRepository) GenerateAlias(ctx context.Context) (string, error) {
 	value, err := r.client.Incr(ctx, "tinylink_count").Result()
 	if err != nil {
 		return "", err
 	}
 
+	fmt.Println("generating alias: ", value)
+
 	alias := base62Encode(value)
 
-	length := len(alias)
-	if length < n {
-		padding := n - length
-		alias = fmt.Sprintf("%s%s", randStr(padding), alias)
-	}
+	// n is fix length
+	// length := len(alias)
+	// if length < n {
+	// 	padding := n - length
+	// 	alias = fmt.Sprintf("%s%s", randStr(padding), alias)
+	// }
 
 	return alias, nil
+}
+
+func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) error {
+	return nil
 }
 
 func (r *TinylinkRedisRepository) Close() error {
@@ -60,10 +67,6 @@ func (r *TinylinkRedisRepository) getTokenTTL(ctx context.Context, userID string
 }
 
 func (r *TinylinkRedisRepository) Update(ctx context.Context, tl *Tinylink) error {
-	return nil
-}
-
-func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) error {
 	return nil
 }
 

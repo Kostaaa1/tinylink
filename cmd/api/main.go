@@ -10,6 +10,7 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/redisdb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/handler"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
@@ -77,15 +78,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// redisClient, err := redisdb.StartRedis(conf.Redis)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	redisClient, err := redisdb.StartRedis(conf.Redis)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	userRepoProvider := user.NewRepositoryProvider(db)
 	userService := user.NewService(userRepoProvider)
 
-	tinylinkProvider := tinylink.NewRepositoryProvider(db, nil)
+	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tinylinkService := tinylink.NewService(tinylinkProvider)
 
 	errHandler := handler.NewErrorHandler(logger)
