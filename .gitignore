@@ -1,7 +1,6 @@
 .env
 NOTES.md
 *.db
-*.sql
 *.pem
 private.pem
 public.pem
