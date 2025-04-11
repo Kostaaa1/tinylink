@@ -41,12 +41,11 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 		}
 
 		if errors.Is(err, token.ErrAccessTokenExpired) {
-			cookie, err := r.Cookie(token.SessionKey)
+			refreshToken, err := token.GetRefreshToken(r)
 			if err != nil {
 				mw.UnauthorizedResponse(w, r)
 				return
 			}
-			refreshToken := cookie.Value
 
 			newRT, newAT, claims, err := mw.tokenService.RefreshTokens(r.Context(), refreshToken, claims.UserID)
 			if err != nil {
@@ -54,12 +53,7 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 				case errors.Is(err, token.ErrTokenNotValid):
 					mw.ForbiddenResponse(w, r)
 				case errors.Is(err, data.ErrNotFound):
-					http.SetCookie(w, &http.Cookie{
-						Name:   token.SessionKey,
-						Value:  "",
-						MaxAge: -1,
-						Path:   "/",
-					})
+					token.ClearCookie(w)
 					mw.UnauthorizedResponse(w, r)
 				default:
 					mw.UnauthorizedResponse(w, r)
@@ -67,18 +61,7 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 				return
 			}
 
-			w.Header().Set("Authorization", "Bearer "+newAT)
-			r.AddCookie(&http.Cookie{
-				Name:     token.SessionKey,
-				Value:    newRT,
-				Secure:   false, // true for https
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Path:     "/",
-				Domain:   "localhost", // change when in prod
-				MaxAge:   int(token.RefreshTokenDuration.Seconds()),
-			})
-
+			token.SetHeaderAndCookie(w, r, newRT, newAT)
 			r = r.WithContext(authcontext.WithClaims(r.Context(), claims))
 			next.ServeHTTP(w, r)
 			return

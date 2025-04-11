@@ -18,7 +18,7 @@ func NewService(tokenRepo TokenRepository) *Service {
 
 func (s *Service) RefreshTokens(ctx context.Context, oldRefreshToken, userID string) (string, string, *Claims, error) {
 	newRT := GenerateRefreshToken()
-	userID, err := s.tokenRepo.TxDelOldAndInsertNew(ctx, userID, oldRefreshToken, newRT, RefreshTokenDuration)
+	userID, err := s.tokenRepo.TxDelOldAndInsertNew(ctx, userID, oldRefreshToken, newRT, refreshTokenDuration)
 	if err != nil {
 		return "", "", nil, err
 	}

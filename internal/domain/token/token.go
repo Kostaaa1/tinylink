@@ -13,21 +13,16 @@ import (
 )
 
 var (
-	SessionKey             = "tinylink_session"
-	jwtSecret              = []byte(os.Getenv("JWT_SECRET_KEY"))
-	AccessTokenDuration    = 15 * time.Minute
-	RefreshTokenDuration   = 7 * 24 * time.Hour
+	sessionKey = "tinylink_session"
+	jwtSecret  = []byte(os.Getenv("JWT_SECRET_KEY"))
+
+	accessTokenDuration  = 15 * time.Minute
+	refreshTokenDuration = 7 * 24 * time.Hour
+
 	ErrAccessTokenExpired  = errors.New("access token expired")
 	ErrRefreshTokenExpired = errors.New("refresh token expired")
 	ErrTokenNotValid       = errors.New("token user id does not match provided user id")
 )
-
-// type RefreshToken struct {
-// 	ID        string
-// 	UserID    string
-// 	CreatedAt time.Duration
-// 	ExpiresAt time.Duration
-// }
 
 type Claims struct {
 	UserID string
@@ -39,7 +34,7 @@ func GetClaimsFromRequest(r *http.Request) (*Claims, error) {
 	bearer := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(bearer, "Bearer ")
 	if token == "" {
-		cookie, _ := r.Cookie(SessionKey)
+		cookie, _ := r.Cookie(sessionKey)
 		token = cookie.Value
 	}
 	return VerifyAccessToken(token)
@@ -49,12 +44,43 @@ func GenerateRefreshToken() string {
 	return uuid.NewString()
 }
 
+func SetHeaderAndCookie(w http.ResponseWriter, r *http.Request, refreshToken, accessToken string) {
+	w.Header().Set("Authorization", "Bearer "+accessToken)
+	r.AddCookie(&http.Cookie{
+		Name:     sessionKey,
+		Value:    refreshToken,
+		Secure:   false, // true for https
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+		Domain:   "localhost", // change when in prod
+		MaxAge:   int(refreshTokenDuration.Seconds()),
+	})
+}
+
+func ClearCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:   sessionKey,
+		Value:  "",
+		MaxAge: -1,
+		Path:   "/",
+	})
+}
+
+func GetRefreshToken(r *http.Request) (string, error) {
+	token, err := r.Cookie(sessionKey)
+	if err != nil {
+		return "", err
+	}
+	return token.Value, nil
+}
+
 func GenerateAccessToken(userID uint64) (string, *Claims, error) {
 	id := strconv.FormatUint(userID, 10)
 	claims := &Claims{
 		UserID: id,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenDuration)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}

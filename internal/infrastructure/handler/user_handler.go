@@ -60,8 +60,8 @@ func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	cookie, _ := r.Cookie(token.SessionKey)
-	if err := h.userService.Logout(ctx, cookie.Value); err != nil {
+	token, _ := token.GetRefreshToken(r)
+	if err := h.userService.Logout(ctx, token); err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
