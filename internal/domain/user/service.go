@@ -93,22 +93,32 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, 
 	return NewUserDTO(user), nil
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, error) {
+func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, string, string, error) {
 	userData, err := s.userDb.GetByEmail(ctx, email)
 	if err != nil {
-		return UserDTO{}, err
+		return UserDTO{}, "", err
 	}
 
 	if len(userData.Password.Hash) > 0 {
 		matches, _ := userData.Password.Matches(password)
 		if !matches {
-			return UserDTO{}, ErrInvalidCredentials
+			return UserDTO{}, "", ErrInvalidCredentials
 		}
 	} else {
-		return UserDTO{}, ErrNoUserPasswordSet
+		return UserDTO{}, "", ErrNoUserPasswordSet
 	}
 
-	return NewUserDTO(userData), err
+	rt := token.GenerateRefreshToken()
+	if err := s.tokenRepo.Store(ctx, rt, strconv.FormatUint(userData.ID, 10)); err != nil {
+		return UserDTO{}, "", err
+	}
+
+	accessToken, _, err := token.GenerateAccessToken(userData.ID)
+	if err != nil {
+		return UserDTO{}, "", err
+	}
+
+	return NewUserDTO(userData), rt, err
 }
 
 func (s *Service) ChangePassword(ctx context.Context, newPW string) error {

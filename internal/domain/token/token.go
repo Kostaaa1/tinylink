@@ -29,7 +29,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// used in unprotected routes that could need user claims (tinylink.Create())
+// used in unprotected routes that might use user claims (tinylink.Create())
 func GetClaimsFromRequest(r *http.Request) (*Claims, error) {
 	bearer := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(bearer, "Bearer ")

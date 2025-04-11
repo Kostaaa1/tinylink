@@ -3,7 +3,6 @@ package token
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/redis/go-redis/v9"
@@ -19,7 +18,7 @@ func NewRedisTokenRepository(c *redis.Client) *RedisTokenRepository {
 	}
 }
 
-func (r *RedisTokenRepository) TxDelOldAndInsertNew(ctx context.Context, userID, oldToken, newToken string, ttl time.Duration) (string, error) {
+func (r *RedisTokenRepository) TxDelOldAndInsertNew(ctx context.Context, userID, oldToken, newToken string) (string, error) {
 	key := fmt.Sprintf("refresh:%s", oldToken)
 
 	tx := r.client.TxPipeline()
@@ -37,7 +36,7 @@ func (r *RedisTokenRepository) TxDelOldAndInsertNew(ctx context.Context, userID,
 	}
 
 	newKey := fmt.Sprintf("refresh:%s", newToken)
-	if err := tx.SetEx(ctx, newKey, fetchedID, ttl).Err(); err != nil {
+	if err := tx.SetEx(ctx, newKey, fetchedID, refreshTokenDuration).Err(); err != nil {
 		return "", fmt.Errorf("failed to insert token: %w", err)
 	}
 
@@ -57,9 +56,9 @@ func (r *RedisTokenRepository) GetUserID(ctx context.Context, tokenID string) (s
 	return userID, nil
 }
 
-func (r *RedisTokenRepository) Store(ctx context.Context, tokenID, userID string, ttl time.Duration) error {
+func (r *RedisTokenRepository) Store(ctx context.Context, tokenID, userID string) error {
 	key := fmt.Sprintf("%s:%s", "refresh", tokenID)
-	return r.client.SetEx(ctx, key, userID, ttl).Err()
+	return r.client.SetEx(ctx, key, userID, refreshTokenDuration).Err()
 }
 
 func (r *RedisTokenRepository) Revoke(ctx context.Context, tokenID string) error {
