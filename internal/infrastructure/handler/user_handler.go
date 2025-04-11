@@ -130,7 +130,7 @@ func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token, err := auth.GenerateAccessToken(loggedUser.ID, loggedUser.Email, time.Minute*15)
+	token, err := auth.GenerateAccessToken(loggedUser.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -175,7 +175,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateAccessToken(userData.ID, userData.Email, 15*time.Minute)
+	token, err := auth.GenerateAccessToken(userData.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return

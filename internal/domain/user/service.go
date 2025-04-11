@@ -116,7 +116,7 @@ func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
 		return err
 	}
 
-	user := &User{Email: claims.Email, ID: id}
+	user := &User{ID: id}
 	if err := user.Password.Set(newPW); err != nil {
 		return err
 	}

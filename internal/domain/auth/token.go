@@ -31,7 +31,6 @@ type RefreshToken struct {
 
 type Claims struct {
 	UserID string
-	Email  string
 	jwt.RegisteredClaims
 }
 
@@ -50,13 +49,12 @@ func GenerateRefreshToken() string {
 	return uuid.NewString()
 }
 
-func GenerateAccessToken(userID uint64, email string, dur time.Duration) (string, error) {
+func GenerateAccessToken(userID uint64) (string, error) {
 	id := strconv.FormatUint(userID, 10)
 	claims := &Claims{
 		UserID: id,
-		Email:  email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(dur)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(AccessTokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
