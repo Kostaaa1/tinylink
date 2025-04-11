@@ -7,19 +7,19 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/domain/auth"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
 )
 
 type Auth struct {
 	errorhandler.ErrorHandler
-	authService *auth.Service
+	tokenService *token.Service
 }
 
-func New(errHandler errorhandler.ErrorHandler, authService *auth.Service) Auth {
+func New(errHandler errorhandler.ErrorHandler, tokenService *token.Service) Auth {
 	return Auth{
 		ErrorHandler: errHandler,
-		authService:  authService,
+		tokenService: tokenService,
 	}
 }
 
@@ -33,29 +33,29 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 
 		accessToken := strings.TrimPrefix(bearer, "Bearer ")
 
-		claims, err := auth.VerifyAccessToken(accessToken)
+		claims, err := token.VerifyAccessToken(accessToken)
 		if err == nil {
 			r = r.WithContext(authcontext.WithClaims(r.Context(), claims))
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		if errors.Is(err, auth.ErrAccessTokenExpired) {
-			cookie, err := r.Cookie(auth.SessionKey)
+		if errors.Is(err, token.ErrAccessTokenExpired) {
+			cookie, err := r.Cookie(token.SessionKey)
 			if err != nil {
 				mw.UnauthorizedResponse(w, r)
 				return
 			}
 			refreshToken := cookie.Value
 
-			newRT, newAT, claims, err := mw.authService.RefreshTokens(r.Context(), refreshToken, claims.UserID)
+			newRT, newAT, claims, err := mw.tokenService.RefreshTokens(r.Context(), refreshToken, claims.UserID)
 			if err != nil {
 				switch {
-				case errors.Is(err, auth.ErrTokenNotValid):
+				case errors.Is(err, token.ErrTokenNotValid):
 					mw.ForbiddenResponse(w, r)
 				case errors.Is(err, data.ErrNotFound):
 					http.SetCookie(w, &http.Cookie{
-						Name:   auth.SessionKey,
+						Name:   token.SessionKey,
 						Value:  "",
 						MaxAge: -1,
 						Path:   "/",
@@ -69,14 +69,14 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 
 			w.Header().Set("Authorization", "Bearer "+newAT)
 			r.AddCookie(&http.Cookie{
-				Name:     auth.SessionKey,
+				Name:     token.SessionKey,
 				Value:    newRT,
 				Secure:   false, // true for https
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 				Path:     "/",
 				Domain:   "localhost", // change when in prod
-				MaxAge:   int(auth.RefreshTokenDuration.Seconds()),
+				MaxAge:   int(token.RefreshTokenDuration.Seconds()),
 			})
 
 			r = r.WithContext(authcontext.WithClaims(r.Context(), claims))

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/redisdb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
@@ -84,14 +84,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	tokenRepo := token.NewRedisTokenRepository(redisClient)
+	tokenService := token.NewService(tokenRepo)
+
 	userRepoProvider := user.NewRepositoryProvider(db)
-	userService := user.NewService(userRepoProvider)
+	userService := user.NewService(userRepoProvider, tokenRepo)
 
 	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tinylinkService := tinylink.NewService(tinylinkProvider)
-
-	tokenRepo := auth.NewRedisTokenRepository(redisClient)
-	authService := auth.NewService(tokenRepo)
 
 	// errHandler := handler.NewErrorHandler(logger)
 	errHandler := errorhandler.New(logger)
@@ -112,8 +112,8 @@ func main() {
 	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
-	// authMW := authmiddleware.New(errHandler, authService)
-	authMW := middleware.New(errHandler, authService)
+	// authMW := authmiddleware.New(errHandler, tokenService)
+	authMW := middleware.New(errHandler, tokenService)
 
 	app.handler.User.RegisterRoutes(r, authMW)
 	app.handler.Tinylink.RegisterRoutes(r, authMW)

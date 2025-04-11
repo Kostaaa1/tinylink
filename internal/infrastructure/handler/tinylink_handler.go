@@ -10,8 +10,8 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
 	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
 	"github.com/Kostaaa1/tinylink/pkg/validator"
@@ -116,7 +116,7 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	claims, err := auth.GetClaimsFromRequest(r)
+	claims, err := token.GetClaimsFromRequest(r)
 	if err != nil {
 		h.UnauthorizedResponse(w, r)
 		return

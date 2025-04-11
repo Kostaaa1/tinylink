@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 )
 
 type Adapters struct {
@@ -20,15 +21,17 @@ type provider interface {
 }
 
 type Service struct {
-	provider provider
-	userDb   UserRepository
+	provider  provider
+	userDb    UserRepository
+	tokenRepo token.TokenRepository
 }
 
-func NewService(provider provider) *Service {
+func NewService(provider provider, tokenRepo token.TokenRepository) *Service {
 	adapters := provider.GetAdapters()
 	return &Service{
-		provider: provider,
-		userDb:   adapters.UserDbRepository,
+		provider:  provider,
+		userDb:    adapters.UserDbRepository,
+		tokenRepo: tokenRepo,
 	}
 }
 
@@ -125,4 +128,11 @@ func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
 	}
 
 	return nil
+}
+
+func (s *Service) Logout(ctx context.Context, tokenID string) error {
+	if tokenID == "" {
+		return nil
+	}
+	return s.tokenRepo.Revoke(ctx, tokenID)
 }

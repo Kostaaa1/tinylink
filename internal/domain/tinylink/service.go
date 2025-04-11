@@ -6,7 +6,7 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/domain/auth"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 )
 
 type DBAdapters struct {
@@ -49,11 +49,11 @@ func (s *Service) getStore(ctx context.Context) Repository {
 	return s.tinylinkRedis
 }
 
-func (s *Service) List(ctx context.Context, claims *auth.Claims) ([]*Tinylink, error) {
+func (s *Service) List(ctx context.Context, claims *token.Claims) ([]*Tinylink, error) {
 	return s.tinylinkDb.List(ctx, claims.UserID)
 }
 
-func (s *Service) Insert(ctx context.Context, claims *auth.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		OriginalURL: req.OriginalURL,
 		Alias:       req.Alias,
@@ -84,7 +84,7 @@ func (s *Service) Insert(ctx context.Context, claims *auth.Claims, req InsertTin
 	return tl, nil
 }
 
-func (s *Service) Update(ctx context.Context, claims *auth.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Update(ctx context.Context, claims *token.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		ID:      req.ID,
 		Alias:   req.Alias,
@@ -98,7 +98,7 @@ func (s *Service) Update(ctx context.Context, claims *auth.Claims, req UpdateTin
 	return tl, nil
 }
 
-func (s *Service) GetPersonal(ctx context.Context, claims *auth.Claims, alias string) (*Tinylink, error) {
+func (s *Service) GetPersonal(ctx context.Context, claims *token.Claims, alias string) (*Tinylink, error) {
 	var tl *Tinylink
 
 	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
@@ -148,6 +148,6 @@ func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	return tl, nil
 }
 
-func (s *Service) Delete(ctx context.Context, claims *auth.Claims, alias string) error {
+func (s *Service) Delete(ctx context.Context, claims *token.Claims, alias string) error {
 	return s.getStore(ctx).Delete(ctx, claims.UserID, alias)
 }

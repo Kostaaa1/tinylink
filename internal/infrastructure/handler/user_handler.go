@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/domain/auth"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
 	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
@@ -51,12 +51,24 @@ func (h UserHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 
 	protected := r.PathPrefix("/user").Subrouter()
 	protected.Use(auth.Middleware)
-	protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("POST")
+	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("POST")
 	protected.HandleFunc("/change-password", h.ChangePassword).Methods("POST")
 	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
 }
 
 func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	cookie, _ := r.Cookie(token.SessionKey)
+	if err := h.userService.Logout(ctx, cookie.Value); err != nil {
+		h.ServerErrorResponse(w, r, err)
+		return
+	}
+
+	if err := writeJSON(w, http.StatusOK, envelope{"message": "successful logout"}, nil); err != nil {
+		h.ServerErrorResponse(w, r, err)
+	}
 }
 
 func (h UserHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +146,7 @@ func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token, _, err := auth.GenerateAccessToken(loggedUser.ID)
+	token, _, err := token.GenerateAccessToken(loggedUser.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -179,7 +191,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, _, err := auth.GenerateAccessToken(userData.ID)
+	token, _, err := token.GenerateAccessToken(userData.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
