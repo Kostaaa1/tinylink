@@ -19,15 +19,15 @@ var (
 	RefreshTokenDuration   = 7 * 24 * time.Hour
 	ErrAccessTokenExpired  = errors.New("access token expired")
 	ErrRefreshTokenExpired = errors.New("refresh token expired")
-	ErrTokenNotValid       = errors.New("token does not match user id")
+	ErrTokenNotValid       = errors.New("token user id does not match provided user id")
 )
 
-type RefreshToken struct {
-	ID        string
-	UserID    string
-	CreatedAt time.Duration
-	ExpiresAt time.Duration
-}
+// type RefreshToken struct {
+// 	ID        string
+// 	UserID    string
+// 	CreatedAt time.Duration
+// 	ExpiresAt time.Duration
+// }
 
 type Claims struct {
 	UserID string
@@ -49,7 +49,7 @@ func GenerateRefreshToken() string {
 	return uuid.NewString()
 }
 
-func GenerateAccessToken(userID uint64) (string, error) {
+func GenerateAccessToken(userID uint64) (string, *Claims, error) {
 	id := strconv.FormatUint(userID, 10)
 	claims := &Claims{
 		UserID: id,
@@ -59,7 +59,11 @@ func GenerateAccessToken(userID uint64) (string, error) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	signed, err := token.SignedString(jwtSecret)
+	if err != nil {
+		return "", nil, err
+	}
+	return signed, claims, nil
 }
 
 func VerifyAccessToken(tokenStr string) (*Claims, error) {

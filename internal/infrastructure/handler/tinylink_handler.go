@@ -30,15 +30,15 @@ func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler errorhandl
 	}
 }
 
-func (h TinylinkHandler) RegisterRoutes(r *mux.Router, mw middleware.MW) {
+func (h TinylinkHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 	tinylinkRouter := r.PathPrefix("/tinylink").Subrouter()
-	tinylinkRouter.Use(mw.Auth)
+	tinylinkRouter.Use(auth.Middleware)
 	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
 	tinylinkRouter.HandleFunc("", h.List).Methods("GET")
 	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 
 	protectedRouter := r.PathPrefix("").Subrouter()
-	protectedRouter.Use(mw.Auth)
+	protectedRouter.Use(auth.Middleware)
 	protectedRouter.HandleFunc("/p/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 
 	r.HandleFunc("/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")

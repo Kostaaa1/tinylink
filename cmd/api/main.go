@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/redisdb"
@@ -89,6 +90,9 @@ func main() {
 	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tinylinkService := tinylink.NewService(tinylinkProvider)
 
+	tokenRepo := auth.NewRedisTokenRepository(redisClient)
+	authService := auth.NewService(tokenRepo)
+
 	// errHandler := handler.NewErrorHandler(logger)
 	errHandler := errorhandler.New(logger)
 	userHandler := handler.NewUserHandler(userService, errHandler)
@@ -108,15 +112,20 @@ func main() {
 	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
-	limit := ratelimiter.New(app.conf.Limiter)
-	mw := middleware.MW{ErrorHandler: errHandler}
-	r.Use(mw.RecoverPanic, limit.Middleware, mw.Logger)
+	// authMW := authmiddleware.New(errHandler, authService)
+	authMW := middleware.New(errHandler, authService)
 
-	app.handler.User.RegisterRoutes(r, mw)
-	app.handler.Tinylink.RegisterRoutes(r, mw)
+	app.handler.User.RegisterRoutes(r, authMW)
+	app.handler.Tinylink.RegisterRoutes(r, authMW)
 	app.router = r
 
 	if err := app.serve(); err != nil {
 		logger.Error("app.serve()", "error", err)
 	}
+}
+
+func (app *application) setMiddleware(r *mux.Router) {
+	limit := ratelimiter.New(app.conf.Limiter)
+	mw := middleware.MW{ErrorHandler: app.handler.ErrorHandler}
+	r.Use(mw.RecoverPanic, limit.Middleware, mw.Logger)
 }

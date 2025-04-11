@@ -40,22 +40,26 @@ func NewUserHandler(userService *user.Service, errHandler errorhandler.ErrorHand
 	}
 }
 
-func (h UserHandler) RegisterRoutes(r *mux.Router, mw middleware.MW) {
-	authRoutes := r.PathPrefix("/auth").Subrouter()
-	authRoutes.HandleFunc("/login/google", h.HandleGoogleRedirect).Methods("GET")
-	authRoutes.HandleFunc("/google/callback", h.HandleGoogleCallback).Methods("GET")
+func (h UserHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
+	r.HandleFunc("/login/google", h.HandleGoogleRedirect).Methods("GET")
+	r.HandleFunc("/google/callback", h.HandleGoogleCallback).Methods("GET")
 	//////////////////////////////////////////////////////////////////////////////////////////
 	userRoutes := r.PathPrefix("/user").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
 	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
 	userRoutes.HandleFunc("/logout", h.Logout).Methods("POST")
+
 	protected := r.PathPrefix("/user").Subrouter()
-	protected.Use(mw.Auth)
+	protected.Use(auth.Middleware)
+	protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("POST")
 	protected.HandleFunc("/change-password", h.ChangePassword).Methods("POST")
 	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
 }
 
 func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+}
+
+func (h UserHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +134,7 @@ func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	token, err := auth.GenerateAccessToken(loggedUser.ID)
+	token, _, err := auth.GenerateAccessToken(loggedUser.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -175,7 +179,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateAccessToken(userData.ID)
+	token, _, err := auth.GenerateAccessToken(userData.ID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return

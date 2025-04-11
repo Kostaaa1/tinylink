@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
 )
 
 type statusResponseWriter struct {
@@ -18,6 +20,10 @@ func (w *statusResponseWriter) WriteHeader(code int) {
 
 func (w *statusResponseWriter) GetStatus() int {
 	return w.statusCode
+}
+
+type MW struct {
+	errorhandler.ErrorHandler
 }
 
 func (mw MW) Logger(next http.Handler) http.Handler {
