@@ -2,15 +2,17 @@ package handler
 
 import (
 	"net/http"
+
+	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
 )
 
 type Handler struct {
-	*ErrorHandler
-	User     *UserHandler
-	Tinylink *TinylinkHandler
+	errorhandler.ErrorHandler
+	User     UserHandler
+	Tinylink TinylinkHandler
 }
 
-func (h *Handler) HealthcheckHandler(w http.ResponseWriter, r *http.Request) {
+func (h Handler) HealthcheckHandler(w http.ResponseWriter, r *http.Request) {
 	env := envelope{
 		"status": "available",
 		"system_info": map[string]string{

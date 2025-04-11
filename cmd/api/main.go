@@ -14,9 +14,9 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/handler"
 	"github.com/Kostaaa1/tinylink/internal/middleware"
-	reqlogger "github.com/Kostaaa1/tinylink/internal/middleware/logger"
 	"github.com/Kostaaa1/tinylink/internal/middleware/ratelimiter"
 	"github.com/Kostaaa1/tinylink/pkg/config"
+	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
@@ -89,7 +89,8 @@ func main() {
 	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tinylinkService := tinylink.NewService(tinylinkProvider)
 
-	errHandler := handler.NewErrorHandler(logger)
+	// errHandler := handler.NewErrorHandler(logger)
+	errHandler := errorhandler.New(logger)
 	userHandler := handler.NewUserHandler(userService, errHandler)
 	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
 
@@ -108,10 +109,11 @@ func main() {
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
 	limit := ratelimiter.New(app.conf.Limiter)
-	r.Use(middleware.RecoverPanic, limit.Middleware, reqlogger.Middleware)
+	mw := middleware.MW{ErrorHandler: errHandler}
+	r.Use(mw.RecoverPanic, limit.Middleware, mw.Logger)
 
-	app.handler.User.RegisterRoutes(r)
-	app.handler.Tinylink.RegisterRoutes(r)
+	app.handler.User.RegisterRoutes(r, mw)
+	app.handler.Tinylink.RegisterRoutes(r, mw)
 	app.router = r
 
 	if err := app.serve(); err != nil {

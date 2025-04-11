@@ -18,15 +18,15 @@ func NewRepositoryProvider(db *sqlx.DB) *RepositoryProvider {
 func (tp *RepositoryProvider) WithTransaction(txFunc func(adapters Adapters) error) error {
 	return runInTx(tp.db, func(tx *sql.Tx) error {
 		adapters := Adapters{
-			UserRepository: &SQLiteUserRepository{db: tx},
+			UserDbRepository: &SQLiteUserRepository{db: tx},
 		}
 		return txFunc(adapters)
 	})
 }
 
-func (tp *RepositoryProvider) GetDbAdapters() Adapters {
+func (tp *RepositoryProvider) GetAdapters() Adapters {
 	return Adapters{
-		UserRepository: &SQLiteUserRepository{db: tp.db},
+		UserDbRepository: &SQLiteUserRepository{db: tp.db},
 	}
 }
 

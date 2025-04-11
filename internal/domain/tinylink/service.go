@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Kostaaa1/tinylink/internal/common/auth"
+	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
+	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 )
 
 type DBAdapters struct {
@@ -21,28 +22,28 @@ type Adapters struct {
 	RedisAdapters
 }
 
-type txProvider interface {
+type provider interface {
 	WithTransaction(txFunc func(dbAdapters DBAdapters) error) error
 	GetAdapters() Adapters
 }
 
 type Service struct {
-	txProvider    txProvider
+	provider      provider
 	tinylinkDb    DBRepository
 	tinylinkRedis RedisRepository
 }
 
-func NewService(txProvider txProvider) *Service {
-	adapters := txProvider.GetAdapters()
+func NewService(provider provider) *Service {
+	adapters := provider.GetAdapters()
 	return &Service{
-		txProvider:    txProvider,
+		provider:      provider,
 		tinylinkDb:    adapters.TinylinkDBRepository,
 		tinylinkRedis: adapters.TinylinkRedisRepository,
 	}
 }
 
 func (s *Service) getStore(ctx context.Context) Repository {
-	if auth.IsAuthenticated(ctx) {
+	if authcontext.IsAuthenticated(ctx) {
 		return s.tinylinkDb
 	}
 	return s.tinylinkRedis
@@ -100,7 +101,7 @@ func (s *Service) Update(ctx context.Context, claims *auth.Claims, req UpdateTin
 func (s *Service) GetPersonal(ctx context.Context, claims *auth.Claims, alias string) (*Tinylink, error) {
 	var tl *Tinylink
 
-	err := s.txProvider.WithTransaction(func(dbAdapters DBAdapters) error {
+	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
 		tl, err := dbAdapters.TinylinkDBRepository.GetByUserID(ctx, claims.UserID, alias)
 		if err != nil {
 			return err
@@ -118,7 +119,7 @@ func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	var tl *Tinylink
 	var err error
 
-	err = s.txProvider.WithTransaction(func(dbAdapters DBAdapters) error {
+	err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
 		tl, err = s.tinylinkRedis.Get(ctx, alias)
 		if err != nil && !errors.Is(err, data.ErrNotFound) {
 			return err

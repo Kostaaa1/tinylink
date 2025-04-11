@@ -57,11 +57,9 @@ func (rl *ratelimit) Middleware(next http.Handler) http.Handler {
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil {
 				// handlers.ServerErrorResponse(w, r, err)
-
 				fmt.Println("error at ratelimit SplitHostPort: ", err)
 				w.WriteHeader(http.StatusInternalServerError)
 				w.Write([]byte("the server encountered a problem and could not process your request"))
-
 				return
 			}
 

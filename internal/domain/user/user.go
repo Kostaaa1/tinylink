@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/common/validator"
+	"github.com/Kostaaa1/tinylink/pkg/validator"
 	"golang.org/x/crypto/bcrypt"
 )
 

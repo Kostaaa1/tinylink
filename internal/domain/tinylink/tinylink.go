@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/common/validator"
+	"github.com/Kostaaa1/tinylink/pkg/validator"
 )
 
 var (

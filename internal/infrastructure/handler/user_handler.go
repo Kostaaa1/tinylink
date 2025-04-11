@@ -9,25 +9,27 @@ import (
 	"os"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/common/auth"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/common/validator"
+	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
+	"github.com/Kostaaa1/tinylink/internal/middleware"
+	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
+	"github.com/Kostaaa1/tinylink/pkg/validator"
 	"github.com/gorilla/mux"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
 
 type UserHandler struct {
-	*ErrorHandler
-	service      *user.Service
+	errorhandler.ErrorHandler
+	userService  *user.Service
 	oauth2Config *oauth2.Config
 }
 
-func NewUserHandler(userService *user.Service, errHandler *ErrorHandler) *UserHandler {
-	return &UserHandler{
+func NewUserHandler(userService *user.Service, errHandler errorhandler.ErrorHandler) UserHandler {
+	return UserHandler{
 		ErrorHandler: errHandler,
-		service:      userService,
+		userService:  userService,
 		oauth2Config: &oauth2.Config{
 			ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 			ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
@@ -38,7 +40,7 @@ func NewUserHandler(userService *user.Service, errHandler *ErrorHandler) *UserHa
 	}
 }
 
-func (h *UserHandler) RegisterRoutes(r *mux.Router) {
+func (h UserHandler) RegisterRoutes(r *mux.Router, mw middleware.MW) {
 	authRoutes := r.PathPrefix("/auth").Subrouter()
 	authRoutes.HandleFunc("/login/google", h.HandleGoogleRedirect).Methods("GET")
 	authRoutes.HandleFunc("/google/callback", h.HandleGoogleCallback).Methods("GET")
@@ -46,12 +48,17 @@ func (h *UserHandler) RegisterRoutes(r *mux.Router) {
 	userRoutes := r.PathPrefix("/user").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
 	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
+	userRoutes.HandleFunc("/logout", h.Logout).Methods("POST")
 	protected := r.PathPrefix("/user").Subrouter()
-	protected.Use(auth.Middleware)
+	protected.Use(mw.Auth)
 	protected.HandleFunc("/change-password", h.ChangePassword).Methods("POST")
+	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
 }
 
-func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+}
+
+func (h UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Password string `json:"password"`
 	}
@@ -70,7 +77,7 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	if err := h.service.ChangePassword(ctx, input.Password); err != nil {
+	if err := h.userService.ChangePassword(ctx, input.Password); err != nil {
 		if errors.Is(err, data.ErrNotFound) {
 			h.NotFoundResponse(w, r)
 			return
@@ -85,24 +92,23 @@ func (h *UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *UserHandler) HandleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
+func (h UserHandler) HandleGoogleRedirect(w http.ResponseWriter, r *http.Request) {
+	// TODO:
 	url := h.oauth2Config.AuthCodeURL("random-state", oauth2.AccessTypeOnline)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func (h *UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
+func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	code := r.URL.Query().Get("code")
 
-	// handle csrf attacks
-
-	token, err := h.oauth2Config.Exchange(ctx, code)
+	googleToken, err := h.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 		return
 	}
 
-	client := h.oauth2Config.Client(ctx, token)
+	client := h.oauth2Config.Client(ctx, googleToken)
 
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
@@ -118,24 +124,25 @@ func (h *UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	loggedUser, err := h.service.HandleGoogleLogin(ctx, &googleUser)
+	loggedUser, err := h.userService.HandleGoogleLogin(ctx, &googleUser)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	jwtToken, err := auth.GenerateJWT(loggedUser.ID, loggedUser.Email)
+	token, err := auth.GenerateAccessToken(loggedUser.ID, loggedUser.Email, time.Minute*15)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, envelope{"user": loggedUser, "token": jwtToken}, nil); err != nil {
+	w.Header().Set("Authorization", "Bearer "+token)
+	if err := writeJSON(w, http.StatusOK, envelope{"user": loggedUser, "token": token}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
 
-func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var input user.LoginRequest
 	if err := readJSON(r, &input); err != nil {
 		h.BadRequestResponse(w, r, err)
@@ -153,7 +160,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	userData, err := h.service.Login(ctx, input.Email, input.Password)
+	userData, err := h.userService.Login(ctx, input.Email, input.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrInvalidCredentials):
@@ -168,18 +175,19 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := auth.GenerateJWT(userData.ID, userData.Email)
+	token, err := auth.GenerateAccessToken(userData.ID, userData.Email, 15*time.Minute)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
+	w.Header().Set("Authorization", "Bearer "+token)
 	if err := writeJSON(w, http.StatusOK, envelope{"user": userData, "token": token}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
 
-func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
+func (h UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req user.RegisterRequest
 	if err := readJSON(r, &req); err != nil {
 		h.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
@@ -197,7 +205,7 @@ func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	dto, err := h.service.Register(ctx, &req)
+	dto, err := h.userService.Register(ctx, &req)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrDuplicateEmail):

@@ -91,8 +91,8 @@ func TestTinylinKSQLite(t *testing.T) {
 	ctx := context.Background()
 
 	userProvider := user.NewRepositoryProvider(db)
-	userAdapters := userProvider.GetDbAdapters()
-	userDb := userAdapters.UserRepository
+	userAdapters := userProvider.GetAdapters()
+	userDb := userAdapters.UserDbRepository
 
 	provider := tinylink.NewRepositoryProvider(db, nil)
 	adapters := provider.GetAdapters()

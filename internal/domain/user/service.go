@@ -6,28 +6,29 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/Kostaaa1/tinylink/internal/common/auth"
+	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 )
 
 type Adapters struct {
-	UserRepository UserRepository
+	UserDbRepository UserRepository
 }
 
-type txProvider interface {
+type provider interface {
 	WithTransaction(txFunc func(adapters Adapters) error) error
-	GetDbAdapters() Adapters
+	GetAdapters() Adapters
 }
 
 type Service struct {
-	txProvider txProvider
-	user       UserRepository
+	provider provider
+	userDb   UserRepository
 }
 
-func NewService(txProvider txProvider) *Service {
+func NewService(provider provider) *Service {
+	adapters := provider.GetAdapters()
 	return &Service{
-		txProvider: txProvider,
-		user:       txProvider.GetDbAdapters().UserRepository,
+		provider: provider,
+		userDb:   adapters.UserDbRepository,
 	}
 }
 
@@ -38,11 +39,11 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 		Google: googleUser,
 	}
 
-	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
-		fetchedUser, err := adapters.UserRepository.GetByEmail(ctx, user.Email)
+	err := s.provider.WithTransaction(func(adapters Adapters) error {
+		fetchedUser, err := adapters.UserDbRepository.GetByEmail(ctx, user.Email)
 		if err != nil {
 			if errors.Is(err, data.ErrNotFound) {
-				if err := adapters.UserRepository.Insert(ctx, user); err != nil {
+				if err := adapters.UserDbRepository.Insert(ctx, user); err != nil {
 					if !errors.Is(err, data.ErrRecordExists) {
 						return fmt.Errorf("failed to insert user: %w", err)
 					}
@@ -67,17 +68,17 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, 
 		return UserDTO{}, nil
 	}
 
-	err := s.txProvider.WithTransaction(func(adapters Adapters) error {
-		fetched, err := adapters.UserRepository.GetByEmail(ctx, user.Email)
+	err := s.provider.WithTransaction(func(adapters Adapters) error {
+		fetched, err := adapters.UserDbRepository.GetByEmail(ctx, user.Email)
 		if err != nil {
 			if errors.Is(err, data.ErrNotFound) {
-				return adapters.UserRepository.Insert(ctx, user)
+				return adapters.UserDbRepository.Insert(ctx, user)
 			}
 			return err
 		}
 		if fetched != nil {
 			user.ID = fetched.ID
-			return adapters.UserRepository.Update(ctx, user)
+			return adapters.UserDbRepository.Update(ctx, user)
 		}
 		return ErrDuplicateEmail
 	})
@@ -90,7 +91,7 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, 
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, error) {
-	userData, err := s.user.GetByEmail(ctx, email)
+	userData, err := s.userDb.GetByEmail(ctx, email)
 	if err != nil {
 		return UserDTO{}, err
 	}
@@ -108,7 +109,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, e
 }
 
 func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
-	claims := auth.ClaimsFromCtx(ctx)
+	claims := authcontext.GetClaims(ctx)
 
 	id, err := strconv.ParseUint(claims.UserID, 10, 64)
 	if err != nil {
@@ -119,7 +120,7 @@ func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
 	if err := user.Password.Set(newPW); err != nil {
 		return err
 	}
-	if err := s.user.Update(ctx, user); err != nil {
+	if err := s.userDb.Update(ctx, user); err != nil {
 		return err
 	}
 

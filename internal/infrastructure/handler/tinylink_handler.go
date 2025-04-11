@@ -8,45 +8,48 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/common/auth"
+	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
-	"github.com/Kostaaa1/tinylink/internal/common/validator"
+	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
+	"github.com/Kostaaa1/tinylink/internal/middleware"
+	"github.com/Kostaaa1/tinylink/pkg/errorhandler"
+	"github.com/Kostaaa1/tinylink/pkg/validator"
 	"github.com/gorilla/mux"
 )
 
 type TinylinkHandler struct {
-	*ErrorHandler
+	errorhandler.ErrorHandler
 	service *tinylink.Service
 }
 
-func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler *ErrorHandler) *TinylinkHandler {
-	return &TinylinkHandler{
+func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler errorhandler.ErrorHandler) TinylinkHandler {
+	return TinylinkHandler{
 		ErrorHandler: errHandler,
 		service:      tinylinkService,
 	}
 }
 
-func (h *TinylinkHandler) RegisterRoutes(r *mux.Router) {
+func (h TinylinkHandler) RegisterRoutes(r *mux.Router, mw middleware.MW) {
 	tinylinkRouter := r.PathPrefix("/tinylink").Subrouter()
-	tinylinkRouter.Use(auth.Middleware)
+	tinylinkRouter.Use(mw.Auth)
 	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
 	tinylinkRouter.HandleFunc("", h.List).Methods("GET")
 	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 
 	protectedRouter := r.PathPrefix("").Subrouter()
-	protectedRouter.Use(auth.Middleware)
+	protectedRouter.Use(mw.Auth)
 	protectedRouter.HandleFunc("/p/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 
 	r.HandleFunc("/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 	r.HandleFunc("/tinylink/create", h.Create).Methods("POST")
 }
 
-func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	claims := auth.ClaimsFromCtx(ctx)
+	claims := authcontext.GetClaims(ctx)
 
 	links, err := h.service.List(ctx, claims)
 	if err != nil {
@@ -59,7 +62,7 @@ func (h *TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var req tinylink.UpdateTinylinkRequest
 	if err := readJSON(r, &req); err != nil {
 		h.BadRequestResponse(w, r, err)
@@ -75,7 +78,7 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	claims := auth.ClaimsFromCtx(ctx)
+	claims := authcontext.GetClaims(ctx)
 
 	tl, err := h.service.Update(ctx, claims, req)
 	if err != nil {
@@ -97,7 +100,7 @@ func (h *TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req tinylink.InsertTinylinkRequest
 	if err := readJSON(r, &req); err != nil {
 		h.BadRequestResponse(w, r, err)
@@ -138,7 +141,7 @@ func (h *TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
+func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
@@ -148,7 +151,7 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	var err error
 
 	if strings.HasPrefix(r.URL.Path, "/p/") {
-		claims := auth.ClaimsFromCtx(ctx)
+		claims := authcontext.ClaimsFromCtx(ctx)
 		if claims == nil {
 			h.UnauthorizedResponse(w, r)
 			return
@@ -171,11 +174,11 @@ func (h *TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusFound)
 }
 
-func (h *TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	claims := auth.ClaimsFromCtx(ctx)
+	claims := authcontext.ClaimsFromCtx(ctx)
 
 	alias := mux.Vars(r)["alias"]
 	if err := h.service.Delete(r.Context(), claims, alias); err != nil {

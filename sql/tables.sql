@@ -44,9 +44,9 @@ CREATE TABLE IF NOT EXISTS visit_log (
     city TEXT,
     country TEXT,
     browser TEXT,
-    os TEXT
+    os TEXT,
     FOREIGN KEY (id) REFERENCES tinylinks (id) ON DELETE CASCADE
-)
+);
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email COLLATE NOCASE);
 

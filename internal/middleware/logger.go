@@ -1,4 +1,4 @@
-package loggermw
+package middleware
 
 import (
 	"log/slog"
@@ -20,7 +20,7 @@ func (w *statusResponseWriter) GetStatus() int {
 	return w.statusCode
 }
 
-func Middleware(next http.Handler) http.Handler {
+func (mw MW) Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		path := r.URL.RequestURI()
