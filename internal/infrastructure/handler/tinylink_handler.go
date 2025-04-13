@@ -48,7 +48,6 @@ func (h TinylinkHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
-
 	claims := authcontext.GetClaims(ctx)
 
 	links, err := h.service.List(ctx, claims)
@@ -77,7 +76,6 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
-
 	claims := authcontext.GetClaims(ctx)
 
 	tl, err := h.service.Update(ctx, claims, req)

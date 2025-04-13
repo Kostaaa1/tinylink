@@ -37,21 +37,17 @@ func randStr(n int) string {
 func (r *TinylinkRedisRepository) GenerateAlias(ctx context.Context) (string, error) {
 	value, err := r.client.Incr(ctx, "tinylink_count").Result()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to increment alias counter: %w", err)
 	}
-
-	fmt.Println("generating alias: ", value)
-
 	alias := base62Encode(value)
-
+	fmt.Println("incrementing and generating alias: ", value, alias)
+	return alias, nil
 	// n is fix length
 	// length := len(alias)
 	// if length < n {
 	// 	padding := n - length
 	// 	alias = fmt.Sprintf("%s%s", randStr(padding), alias)
 	// }
-
-	return alias, nil
 }
 
 func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) error {

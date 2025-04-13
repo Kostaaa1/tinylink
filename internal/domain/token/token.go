@@ -29,7 +29,7 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// used in unprotected routes that might use user claims (tinylink.Create())
+// used in unprotected routes where user claims could be nil (tinylink.Create())
 func GetClaimsFromRequest(r *http.Request) (*Claims, error) {
 	bearer := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(bearer, "Bearer ")
@@ -46,14 +46,13 @@ func GenerateRefreshToken() string {
 
 func SetHeaderAndCookie(w http.ResponseWriter, r *http.Request, refreshToken, accessToken string) {
 	w.Header().Set("Authorization", "Bearer "+accessToken)
-	r.AddCookie(&http.Cookie{
+	http.SetCookie(w, &http.Cookie{
 		Name:     sessionKey,
 		Value:    refreshToken,
 		Secure:   false, // true for https
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-		Domain:   "localhost", // change when in prod
 		MaxAge:   int(refreshTokenDuration.Seconds()),
 	})
 }
@@ -77,6 +76,7 @@ func GetRefreshToken(r *http.Request) (string, error) {
 
 func GenerateAccessToken(userID uint64) (string, *Claims, error) {
 	id := strconv.FormatUint(userID, 10)
+
 	claims := &Claims{
 		UserID: id,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -84,11 +84,14 @@ func GenerateAccessToken(userID uint64) (string, *Claims, error) {
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
 	signed, err := token.SignedString(jwtSecret)
 	if err != nil {
 		return "", nil, err
 	}
+
 	return signed, claims, nil
 }
 

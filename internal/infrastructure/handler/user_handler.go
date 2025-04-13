@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/common/authcontext"
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
@@ -47,21 +48,24 @@ func (h UserHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 	userRoutes := r.PathPrefix("/user").Subrouter()
 	userRoutes.HandleFunc("/register", h.Register).Methods("POST")
 	userRoutes.HandleFunc("/login", h.Login).Methods("POST")
-	userRoutes.HandleFunc("/logout", h.Logout).Methods("POST")
 
 	protected := r.PathPrefix("/user").Subrouter()
 	protected.Use(auth.Middleware)
-	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("POST")
 	protected.HandleFunc("/change-password", h.ChangePassword).Methods("POST")
-	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
+	protected.HandleFunc("/logout", h.Logout).Methods("POST")
+	protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
+}
+
+func (h UserHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	token, _ := token.GetRefreshToken(r)
-	if err := h.userService.Logout(ctx, token); err != nil {
+	claims := authcontext.ClaimsFromCtx(ctx)
+
+	if err := h.userService.Logout(ctx, claims.UserID); err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
@@ -69,9 +73,6 @@ func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if err := writeJSON(w, http.StatusOK, envelope{"message": "successful logout"}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
-}
-
-func (h UserHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +177,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	userData, refreshToken, err := h.userService.Login(ctx, input.Email, input.Password)
+	userData, accessToken, refreshToken, err := h.userService.Login(ctx, input.Email, input.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrInvalidCredentials):
@@ -188,12 +189,6 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		default:
 			h.ServerErrorResponse(w, r, err)
 		}
-		return
-	}
-
-	accessToken, _, err := token.GenerateAccessToken(userData.ID)
-	if err != nil {
-		h.ServerErrorResponse(w, r, err)
 		return
 	}
 

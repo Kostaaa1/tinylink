@@ -62,20 +62,26 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		UserID:      claims.UserID,
 	}
 
+	var err error
+
 	if tl.Alias == "" {
-		alias, err := s.tinylinkRedis.GenerateAlias(ctx)
-		if err != nil {
-			return nil, err
-		}
-		tl.Alias = alias
+		tl.Alias, err = s.tinylinkRedis.GenerateAlias(ctx)
 	}
 
-	var err error
-	if tl.UserID != "" {
-		err = s.tinylinkDb.Insert(ctx, tl)
-	} else {
-		err = s.tinylinkRedis.Insert(ctx, tl)
+	if err != nil {
+		return nil, err
 	}
+
+	err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
+		fetched, err := dbAdapters.TinylinkDBRepository.Get(ctx, tl.Alias)
+		if err != nil && err != data.ErrNotFound {
+			return err
+		}
+		if fetched != nil {
+			return ErrAliasExists
+		}
+		return dbAdapters.TinylinkDBRepository.Insert(ctx, tl)
+	})
 
 	if err != nil {
 		return nil, err
@@ -92,9 +98,18 @@ func (s *Service) Update(ctx context.Context, claims *token.Claims, req UpdateTi
 		Private: req.Private,
 		UserID:  claims.UserID,
 	}
-	if err := s.getStore(ctx).Update(ctx, tl); err != nil {
-		return nil, err
-	}
+
+	s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
+		fetched, err := dbAdapters.TinylinkDBRepository.Get(ctx, tl.Alias)
+		if err != nil && err != data.ErrNotFound {
+			return err
+		}
+		if fetched != nil {
+			return ErrAliasExists
+		}
+		return dbAdapters.TinylinkDBRepository.Update(ctx, tl)
+	})
+
 	return tl, nil
 }
 
@@ -149,5 +164,5 @@ func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
 }
 
 func (s *Service) Delete(ctx context.Context, claims *token.Claims, alias string) error {
-	return s.getStore(ctx).Delete(ctx, claims.UserID, alias)
+	return s.tinylinkDb.Delete(ctx, claims.UserID, alias)
 }

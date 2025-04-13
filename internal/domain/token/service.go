@@ -16,10 +16,13 @@ func NewService(tokenRepo TokenRepository) *Service {
 	}
 }
 
-func (s *Service) RefreshTokens(ctx context.Context, oldRefreshToken, userID string) (string, string, *Claims, error) {
+func (s *Service) RefreshTokens(ctx context.Context, userID, oldToken string) (string, string, *Claims, error) {
+	if err := s.tokenRepo.Valid(ctx, userID, oldToken); err != nil {
+		return "", "", nil, err
+	}
+
 	newRT := GenerateRefreshToken()
-	userID, err := s.tokenRepo.TxDelOldAndInsertNew(ctx, userID, oldRefreshToken, newRT)
-	if err != nil {
+	if err := s.tokenRepo.Save(ctx, userID, newRT); err != nil {
 		return "", "", nil, err
 	}
 

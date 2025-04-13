@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -13,55 +12,33 @@ type RedisTokenRepository struct {
 }
 
 func NewRedisTokenRepository(c *redis.Client) *RedisTokenRepository {
-	return &RedisTokenRepository{
-		client: c,
-	}
+	return &RedisTokenRepository{client: c}
 }
 
-func (r *RedisTokenRepository) TxDelOldAndInsertNew(ctx context.Context, userID, oldToken, newToken string) (string, error) {
-	key := fmt.Sprintf("refresh:%s", oldToken)
+func (r *RedisTokenRepository) Save(ctx context.Context, userID, newToken string) error {
+	fmt.Println("storing new token:", userID, newToken)
+	newKey := key(userID)
+	return r.client.SetEx(ctx, newKey, newToken, refreshTokenDuration).Err()
+}
 
-	tx := r.client.TxPipeline()
+func (r *RedisTokenRepository) Delete(ctx context.Context, userID string) error {
+	fmt.Println("deleting session for user: ", userID)
+	newKey := key(userID)
+	return r.client.Del(ctx, newKey).Err()
+}
 
-	fetchedID, err := tx.Get(ctx, key).Result()
+func (r *RedisTokenRepository) Valid(ctx context.Context, userID, token string) error {
+	newKey := key(userID)
+	rt, err := r.client.Get(ctx, newKey).Result()
 	if err != nil {
-		if err == redis.Nil {
-			return "", data.ErrNotFound
-		}
-		return "", fmt.Errorf("failed to get token: %w", err)
+		return err
 	}
-
-	if fetchedID != userID {
-		return "", ErrTokenNotValid
+	if rt != token {
+		return ErrTokenNotValid
 	}
-
-	newKey := fmt.Sprintf("refresh:%s", newToken)
-	if err := tx.SetEx(ctx, newKey, fetchedID, refreshTokenDuration).Err(); err != nil {
-		return "", fmt.Errorf("failed to insert token: %w", err)
-	}
-
-	if err := tx.Del(ctx, key).Err(); err != nil {
-		return "", fmt.Errorf("failed to delete token: %w", err)
-	}
-
-	return fetchedID, nil
+	return nil
 }
 
-func (r *RedisTokenRepository) GetUserID(ctx context.Context, tokenID string) (string, error) {
-	key := fmt.Sprintf("%s:%s", "refresh", tokenID)
-	userID, err := r.client.Get(ctx, key).Result()
-	if err != nil {
-		return "", err
-	}
-	return userID, nil
-}
-
-func (r *RedisTokenRepository) Store(ctx context.Context, tokenID, userID string) error {
-	key := fmt.Sprintf("%s:%s", "refresh", tokenID)
-	return r.client.SetEx(ctx, key, userID, refreshTokenDuration).Err()
-}
-
-func (r *RedisTokenRepository) Revoke(ctx context.Context, tokenID string) error {
-	key := fmt.Sprintf("%s:%s", "refresh", tokenID)
-	return r.client.Del(ctx, key).Err()
+func key(userID string) string {
+	return fmt.Sprintf("%s:%s", "refresh", userID)
 }

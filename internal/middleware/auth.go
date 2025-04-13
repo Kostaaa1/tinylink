@@ -41,13 +41,13 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 		}
 
 		if errors.Is(err, token.ErrAccessTokenExpired) {
-			refreshToken, err := token.GetRefreshToken(r)
+			oldToken, err := token.GetRefreshToken(r)
 			if err != nil {
-				mw.UnauthorizedResponse(w, r)
+				mw.ErrorResponse(w, r, http.StatusUnauthorized, err)
 				return
 			}
 
-			newRT, newAT, claims, err := mw.tokenService.RefreshTokens(r.Context(), refreshToken, claims.UserID)
+			newRT, newAT, claims, err := mw.tokenService.RefreshTokens(r.Context(), claims.UserID, oldToken)
 			if err != nil {
 				switch {
 				case errors.Is(err, token.ErrTokenNotValid):
@@ -63,7 +63,9 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 
 			token.SetHeaderAndCookie(w, r, newRT, newAT)
 			r = r.WithContext(authcontext.WithClaims(r.Context(), claims))
+
 			next.ServeHTTP(w, r)
+
 			return
 		}
 

@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS tinylinks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alias TEXT NOT NULL,
     original_url TEXT NOT NULL,
-    user_id INTEGER NOT NULL,
+    user_id INTEGER,
     is_private INTEGER NOT NULL DEFAULT 0,
     usage_count INTEGER NOT NULL DEFAULT 0,
     domain TEXT,

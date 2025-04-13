@@ -52,7 +52,7 @@ func init() {
 
 	flag.BoolVar(&conf.Redis.Enabled, "redis-enabled", false, "enable redis")
 	flag.StringVar(&conf.Redis.Addr, "redis-addr", "localhost:6379", "redis server address")
-	flag.StringVar(&conf.Redis.Password, "redis-password", "", "redis password")
+	flag.StringVar(&conf.Redis.Password, "redis-password", "dskaodstesdt123", "redis password")
 	flag.IntVar(&conf.Redis.DB, "redis-db", 0, "redis database number")
 	flag.IntVar(&conf.Redis.PoolSize, "redis-pool-size", 10, "redis connection pool size")
 
@@ -93,7 +93,6 @@ func main() {
 	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tinylinkService := tinylink.NewService(tinylinkProvider)
 
-	// errHandler := handler.NewErrorHandler(logger)
 	errHandler := errorhandler.New(logger)
 	userHandler := handler.NewUserHandler(userService, errHandler)
 	tinylinkHandler := handler.NewTinylinkHandler(tinylinkService, errHandler)
@@ -112,8 +111,8 @@ func main() {
 	r.MethodNotAllowedHandler = http.HandlerFunc(app.handler.MethodNotAllowedResponse)
 	r.NotFoundHandler = http.HandlerFunc(app.handler.NotFoundResponse)
 
-	// authMW := authmiddleware.New(errHandler, tokenService)
 	authMW := middleware.New(errHandler, tokenService)
+	app.setMiddleware(r)
 
 	app.handler.User.RegisterRoutes(r, authMW)
 	app.handler.Tinylink.RegisterRoutes(r, authMW)

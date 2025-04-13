@@ -96,29 +96,29 @@ func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, 
 func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, string, string, error) {
 	userData, err := s.userDb.GetByEmail(ctx, email)
 	if err != nil {
-		return UserDTO{}, "", err
+		return UserDTO{}, "", "", err
 	}
 
 	if len(userData.Password.Hash) > 0 {
 		matches, _ := userData.Password.Matches(password)
 		if !matches {
-			return UserDTO{}, "", ErrInvalidCredentials
+			return UserDTO{}, "", "", ErrInvalidCredentials
 		}
 	} else {
-		return UserDTO{}, "", ErrNoUserPasswordSet
+		return UserDTO{}, "", "", ErrNoUserPasswordSet
 	}
 
-	rt := token.GenerateRefreshToken()
-	if err := s.tokenRepo.Store(ctx, rt, strconv.FormatUint(userData.ID, 10)); err != nil {
-		return UserDTO{}, "", err
+	refreshToken := token.GenerateRefreshToken()
+	if err := s.tokenRepo.Save(ctx, strconv.FormatUint(userData.ID, 10), refreshToken); err != nil {
+		return UserDTO{}, "", "", err
 	}
 
 	accessToken, _, err := token.GenerateAccessToken(userData.ID)
 	if err != nil {
-		return UserDTO{}, "", err
+		return UserDTO{}, "", "", err
 	}
 
-	return NewUserDTO(userData), rt, err
+	return NewUserDTO(userData), accessToken, refreshToken, err
 }
 
 func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
@@ -144,5 +144,5 @@ func (s *Service) Logout(ctx context.Context, tokenID string) error {
 	if tokenID == "" {
 		return nil
 	}
-	return s.tokenRepo.Revoke(ctx, tokenID)
+	return s.tokenRepo.Delete(ctx, tokenID)
 }
