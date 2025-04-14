@@ -58,16 +58,19 @@ func (r *TinylinkRedisRepository) Exists(ctx context.Context, alias string) (boo
 	return exists > 0, nil
 }
 
-func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink, ttl time.Duration) error {
+func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) error {
 	key := fmt.Sprintf("tinylink:%s", tl.Alias)
 	pipe := r.client.Pipeline()
 	pipe.HSet(ctx, key, map[string]interface{}{
 		"id":  tl.ID,
 		"url": tl.OriginalURL,
 	})
+
+	ttl := time.Until(time.Unix(tl.ExpiresAt, 0))
 	if ttl > 0 {
-		pipe.Expire(ctx, key, ttl)
+		pipe.Expire(ctx, key, time.Duration(tl.ExpiresAt))
 	}
+
 	_, err := pipe.Exec(ctx)
 	return err
 }

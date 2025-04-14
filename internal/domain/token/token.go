@@ -100,18 +100,14 @@ func VerifyAccessToken(tokenStr string) (*Claims, error) {
 		}
 		return jwtSecret, nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
-
 	if !token.Valid {
 		return nil, ErrAccessTokenExpired
 	}
-
 	if claims, ok := token.Claims.(*Claims); ok {
 		return claims, nil
 	}
-
 	return nil, errors.New("access token not found??")
 }

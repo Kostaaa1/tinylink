@@ -3,7 +3,7 @@ package tinylink
 import (
 	"context"
 	"errors"
-	"fmt"
+	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
@@ -77,6 +77,7 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		tl.UserID = &claims.UserID
 	} else {
 		tl.Private = false
+		tl.ExpiresAt = time.Now().Add(time.Duration(anonTTL)).Unix()
 	}
 
 	var err error
@@ -92,19 +93,7 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		return nil, err
 	}
 
-	if hasUserID {
-		fmt.Println("inserting in db")
-		if err := s.db.Insert(ctx, tl); err != nil {
-			return nil, err
-		}
-	} else {
-		fmt.Println("inserting in redis")
-		if err := s.redis.Insert(ctx, tl, anonTTL); err != nil {
-			return nil, err
-		}
-	}
-
-	if err != nil {
+	if err := s.db.Insert(ctx, tl); err != nil {
 		return nil, err
 	}
 
@@ -165,7 +154,7 @@ func (s *Service) Redirect(ctx context.Context, alias string) (string, error) {
 			if rowID, url, err = dbAdapters.TinylinkDBRepository.Redirect(ctx, alias); err != nil {
 				return err
 			}
-			return s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, OriginalURL: url}, cacheTTL)
+			return s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, OriginalURL: url, ExpiresAt: int64(cacheTTL)})
 		}
 
 		if url == "" {
