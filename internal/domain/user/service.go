@@ -62,11 +62,7 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 }
 
 func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, error) {
-	user := &User{
-		Email: req.Email,
-		Name:  req.Name,
-	}
-
+	user := &User{Email: req.Email, Name: req.Name}
 	if err := user.Password.Set(req.Password); err != nil {
 		return UserDTO{}, nil
 	}
@@ -122,7 +118,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, s
 }
 
 func (s *Service) ChangePassword(ctx context.Context, newPW string) error {
-	claims := authcontext.GetClaims(ctx)
+	claims := authcontext.Claims(ctx)
 
 	id, err := strconv.ParseUint(claims.UserID, 10, 64)
 	if err != nil {

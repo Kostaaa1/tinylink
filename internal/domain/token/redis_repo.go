@@ -16,13 +16,11 @@ func NewRedisTokenRepository(c *redis.Client) *RedisTokenRepository {
 }
 
 func (r *RedisTokenRepository) Save(ctx context.Context, userID, newToken string) error {
-	fmt.Println("storing new token:", userID, newToken)
 	newKey := key(userID)
 	return r.client.SetEx(ctx, newKey, newToken, refreshTokenDuration).Err()
 }
 
 func (r *RedisTokenRepository) Delete(ctx context.Context, userID string) error {
-	fmt.Println("deleting session for user: ", userID)
 	newKey := key(userID)
 	return r.client.Del(ctx, newKey).Err()
 }

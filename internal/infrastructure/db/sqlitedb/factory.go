@@ -2,28 +2,28 @@ package sqlitedb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/config"
-	"github.com/jmoiron/sqlx"
 
 	_ "embed"
 )
 
-func StartDB(conf config.SQLConfig) (*sqlx.DB, error) {
+func StartDB(conf config.SQLConfig) (*sql.DB, error) {
 	var err error
-	var db *sqlx.DB
+	var db *sql.DB
 
 	switch {
 	case conf.DSN != "":
-		db, err = sqlx.Open("sqlite3", conf.DSN)
+		db, err = sql.Open("sqlite3", conf.DSN)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open SQLite connection with DSN: %w", err)
 		}
 	case conf.SQLitePath != "":
-		db, err = sqlx.Open("sqlite3", conf.SQLitePath)
+		db, err = sql.Open("sqlite3", conf.SQLitePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open SQLite connection from path: %w", err)
 		}
@@ -34,10 +34,9 @@ func StartDB(conf config.SQLConfig) (*sqlx.DB, error) {
 	db.SetMaxIdleConns(conf.MaxIdleConns)
 	db.SetMaxOpenConns(conf.MaxOpenConns)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
+	if err := db.PingContext(pingCtx); err != nil {
 		return nil, err
 	}
 
@@ -49,7 +48,6 @@ func StartDB(conf config.SQLConfig) (*sqlx.DB, error) {
 	// if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
 	// 	log.Fatal("Failed to enable foreign keys:", err)
 	// }
-
 	// _, b, _, _ := runtime.Caller(0)
 	// basePath := filepath.Join(filepath.Dir(b), "../../../../sql/tables.sql")
 	// tablesSql, err := os.ReadFile(basePath)

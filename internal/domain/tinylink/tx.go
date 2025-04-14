@@ -4,16 +4,15 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
 )
 
 type RepositoryProvider struct {
-	db     *sqlx.DB
+	db     *sql.DB
 	client *redis.Client
 }
 
-func NewRepositoryProvider(db *sqlx.DB, client *redis.Client) *RepositoryProvider {
+func NewRepositoryProvider(db *sql.DB, client *redis.Client) *RepositoryProvider {
 	return &RepositoryProvider{
 		db:     db,
 		client: client,
@@ -40,7 +39,7 @@ func (p *RepositoryProvider) WithTransaction(txFunc func(dbAdapters DBAdapters) 
 	})
 }
 
-func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
+func runInTx(db *sql.DB, fn func(tx *sql.Tx) error) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err

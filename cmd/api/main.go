@@ -66,19 +66,23 @@ func setupLogger(w io.Writer, conf *config.Config) *slog.Logger {
 	} else {
 		logHandler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelError})
 	}
+
 	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
+
 	return logger
 }
 
 func main() {
 	logger := setupLogger(os.Stdout, &conf)
 
+	// rootCtx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
+
 	db, err := sqlitedb.StartDB(conf.SQL)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	redisClient, err := redisdb.StartRedis(conf.Redis)
 	if err != nil {
 		log.Fatal(err)

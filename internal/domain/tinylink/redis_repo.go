@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,46 +35,60 @@ func randStr(n int) string {
 	return str.String()
 }
 
+// first check available aliases that expired, if found use it, if not increment counter and generate alias
 func (r *TinylinkRedisRepository) GenerateAlias(ctx context.Context) (string, error) {
 	value, err := r.client.Incr(ctx, "tinylink_count").Result()
 	if err != nil {
 		return "", fmt.Errorf("failed to increment alias counter: %w", err)
 	}
 	alias := base62Encode(value)
-	fmt.Println("incrementing and generating alias: ", value, alias)
 	return alias, nil
-	// n is fix length
-	// length := len(alias)
-	// if length < n {
-	// 	padding := n - length
-	// 	alias = fmt.Sprintf("%s%s", randStr(padding), alias)
-	// }
 }
 
-func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) error {
-	return nil
+func key(alias string) string {
+	return fmt.Sprintf("tinylink:%s", alias)
 }
 
-func (r *TinylinkRedisRepository) Close() error {
-	return r.client.Close()
+func (r *TinylinkRedisRepository) Exists(ctx context.Context, alias string) (bool, error) {
+	key := key(alias)
+	exists, err := r.client.Exists(ctx, key).Result()
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
 }
 
-func (r *TinylinkRedisRepository) getTokenTTL(ctx context.Context, userID string) time.Duration {
-	return 0
+func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink, ttl time.Duration) error {
+	key := fmt.Sprintf("tinylink:%s", tl.Alias)
+	pipe := r.client.Pipeline()
+	pipe.HSet(ctx, key, map[string]interface{}{
+		"id":  tl.ID,
+		"url": tl.OriginalURL,
+	})
+	if ttl > 0 {
+		pipe.Expire(ctx, key, ttl)
+	}
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
-func (r *TinylinkRedisRepository) Update(ctx context.Context, tl *Tinylink) error {
-	return nil
-}
+func (r *TinylinkRedisRepository) Redirect(ctx context.Context, alias string) (uint64, string, error) {
+	key := fmt.Sprintf("tinylink:%s", alias)
 
-func (r *TinylinkRedisRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
-	return nil, nil
-}
+	res, err := r.client.HMGet(ctx, key, "url", "id").Result()
+	if err != nil {
+		return 0, "", err
+	}
 
-func (r *TinylinkRedisRepository) List(ctx context.Context, userID string) ([]*Tinylink, error) {
-	return nil, nil
-}
+	if res[0] == nil || res[1] == nil {
+		return 0, "", err
+	}
 
-func (r *TinylinkRedisRepository) Delete(ctx context.Context, userID, alias string) error {
-	return nil
+	url := res[0].(string)
+	rowID, err := strconv.ParseUint(res[1].(string), 10, 64)
+	if err != nil {
+		return 0, "", err
+	}
+
+	return rowID, url, nil
 }

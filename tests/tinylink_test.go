@@ -2,6 +2,7 @@ package tinylink_test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,12 +13,11 @@ import (
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/pkg/config"
-	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestDB(t *testing.T) *sqlx.DB {
+func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
 	dbPath := filepath.Join(t.TempDir(), "tinylink_test.db")
@@ -76,7 +76,11 @@ func TestTinylinkService(t *testing.T) {
 	tlProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tlService := tinylink.NewService(tlProvider)
 
+	// t.Run("Insert test", func(t *testing.T) {
+	// 	tlService.Insert(ctx, )
+	// })
 	// Business logic
+
 	t.Run("Duplicate alias should fail", func(t *testing.T) {
 		claims := &token.Claims{UserID: userID}
 
@@ -124,7 +128,7 @@ func TestTinylinKSQLite(t *testing.T) {
 
 	t.Run("Create and retrieve tinylink", func(t *testing.T) {
 		tl := &tinylink.Tinylink{
-			UserID:      userID,
+			UserID:      &userID,
 			OriginalURL: "https://codingchallenges.fyi/challenges/challenge-json-parser/",
 			Alias:       "cc123",
 			Private:     false,
@@ -142,7 +146,7 @@ func TestTinylinKSQLite(t *testing.T) {
 
 	t.Run("List all user tinylinks", func(t *testing.T) {
 		tl := &tinylink.Tinylink{
-			UserID:      userID,
+			UserID:      &userID,
 			OriginalURL: "https://example.com/another",
 			Alias:       "321cc",
 			Private:     false,
@@ -161,7 +165,7 @@ func TestTinylinKSQLite(t *testing.T) {
 	t.Run("Update tinylink", func(t *testing.T) {
 		tl := &tinylink.Tinylink{
 			ID:          insertedTlID,
-			UserID:      userID,
+			UserID:      &userID,
 			OriginalURL: "https://example.com/another",
 			Alias:       "updateTest123",
 			Private:     true,
@@ -174,7 +178,7 @@ func TestTinylinKSQLite(t *testing.T) {
 
 		time.Sleep(1 * time.Second)
 		oldLV := tl.LastVisited
-		require.Nil(t, tlDb.UpdateUsage(ctx, tl))
+		require.Nil(t, tlDb.UpdateUsage(ctx, tl.ID))
 		require.Equal(t, tl.UsageCount, 1)
 		require.NotEqual(t, tl.LastVisited, oldLV)
 	})

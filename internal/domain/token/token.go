@@ -26,17 +26,14 @@ var (
 
 type Claims struct {
 	UserID string
+	JTI    string // blacklisting
 	jwt.RegisteredClaims
 }
 
 // used in unprotected routes where user claims could be nil (tinylink.Create())
-func GetClaimsFromRequest(r *http.Request) (*Claims, error) {
+func ClaimsFromRequest(r *http.Request) (*Claims, error) {
 	bearer := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(bearer, "Bearer ")
-	if token == "" {
-		cookie, _ := r.Cookie(sessionKey)
-		token = cookie.Value
-	}
 	return VerifyAccessToken(token)
 }
 
@@ -79,6 +76,7 @@ func GenerateAccessToken(userID uint64) (string, *Claims, error) {
 
 	claims := &Claims{
 		UserID: id,
+		JTI:    uuid.NewString(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(accessTokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

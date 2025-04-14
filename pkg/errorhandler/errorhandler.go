@@ -26,7 +26,14 @@ func New(logger *slog.Logger) ErrorHandler {
 }
 
 func (h ErrorHandler) logError(r *http.Request, err error) {
-	h.logger.Error(err.Error())
+	h.logger.Error(
+		"server error",
+		"error", err.Error(),
+		"method", r.Method,
+		"url", r.URL.String(),
+		"remote_addr", r.RemoteAddr,
+		"user_agent", r.UserAgent(),
+	)
 }
 
 func (h ErrorHandler) RateLimitExceededResponse(w http.ResponseWriter, r *http.Request, rps float64) {

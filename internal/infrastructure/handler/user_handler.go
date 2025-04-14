@@ -177,7 +177,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	userData, accessToken, refreshToken, err := h.userService.Login(ctx, input.Email, input.Password)
+	dto, accessToken, refreshToken, err := h.userService.Login(ctx, input.Email, input.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrInvalidCredentials):
@@ -193,7 +193,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token.SetHeaderAndCookie(w, r, refreshToken, accessToken)
-	if err := writeJSON(w, http.StatusOK, envelope{"user": userData, "token": accessToken}, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, envelope{"user": dto, "token": accessToken}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -226,6 +226,7 @@ func (h UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	fmt.Println("DTO: ", dto)
 
 	if err := writeJSON(w, http.StatusOK, envelope{"user": dto}, nil); err != nil {
 		h.ServerErrorResponse(w, r, err)

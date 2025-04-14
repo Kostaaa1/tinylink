@@ -3,6 +3,7 @@ package tinylink
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 type db interface {
@@ -12,20 +13,23 @@ type db interface {
 }
 
 type Repository interface {
-	Get(ctx context.Context, alias string) (*Tinylink, error)
-	Insert(ctx context.Context, tl *Tinylink) error
+	Redirect(ctx context.Context, alias string) (uint64, string, error)
 }
 
 type RedisRepository interface {
 	Repository
 	GenerateAlias(ctx context.Context) (string, error)
+	Insert(ctx context.Context, tl *Tinylink, ttl time.Duration) error
+	Exists(ctx context.Context, alias string) (bool, error)
 }
 
 type DBRepository interface {
 	Repository
+	Insert(ctx context.Context, tl *Tinylink) error
+	Get(ctx context.Context, alias string) (*Tinylink, error)
 	List(ctx context.Context, userID string) ([]*Tinylink, error)
 	Delete(ctx context.Context, userID, id string) error
 	Update(ctx context.Context, tl *Tinylink) error
-	UpdateUsage(ctx context.Context, tl *Tinylink) error
-	GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error)
+	UpdateUsage(ctx context.Context, rowID uint64) error
+	RedirectPersonal(ctx context.Context, userID, alias string) (uint64, string, error)
 }

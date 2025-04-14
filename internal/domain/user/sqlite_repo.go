@@ -14,60 +14,6 @@ type SQLiteUserRepository struct {
 	db db
 }
 
-func (r *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*User, error) {
-	query := `SELECT u.id, u.name, u.email, u.password_hash, u.version, u.created_at,
-		gu.google_id, gu.name, gu.given_name, gu.family_name, gu.picture, gu.is_verified, gu.created_at 
-		FROM users u
-		LEFT JOIN google_users_data gu ON gu.user_id = u.id
-		WHERE id = ?`
-
-	var userData User
-	var createdAt int64
-
-	var gID, gName, gGivenName, gFamilyName, gPicture sql.NullString
-	var gVerified sql.NullBool
-	var googlCreatedAt sql.NullInt64
-
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&userData.ID,
-		&userData.Name,
-		&userData.Email,
-		&userData.Password.Hash,
-		&userData.Version,
-		&createdAt,
-		&gID,
-		&gName,
-		&gGivenName,
-		&gFamilyName,
-		&gPicture,
-		&gVerified,
-		&googlCreatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrNotFound
-		}
-		return nil, err
-	}
-	// userData.CreatedAt = time.Unix(createdAt, 0)
-
-	if gID.Valid {
-		userData.Google = &GoogleUser{
-			UserID:        userData.ID,
-			ID:            gID.String,
-			Email:         userData.Email,
-			VerifiedEmail: gVerified.Bool,
-			FamilyName:    gFamilyName.String,
-			Name:          gName.String,
-			GivenName:     gGivenName.String,
-			Picture:       gPicture.String,
-			CreatedAt:     googlCreatedAt.Int64,
-		}
-	}
-
-	return &userData, err
-}
-
 func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `SELECT u.id, u.name, u.email, u.password_hash, u.version, u.created_at,
 		gu.google_id, gu.name, gu.given_name, gu.family_name, gu.picture, gu.is_verified, gu.created_at 
@@ -78,7 +24,6 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 	userData := &User{
 		Password: password{},
 	}
-	var createdAt int64
 
 	var gID, gName, gGivenName, gFamilyName, gPicture sql.NullString
 	var gVerified sql.NullBool
@@ -90,7 +35,7 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 		&userData.Email,
 		&userData.Password.Hash,
 		&userData.Version,
-		&createdAt,
+		&userData.CreatedAt,
 		&gID,
 		&gName,
 		&gGivenName,
@@ -105,7 +50,6 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 		}
 		return nil, err
 	}
-	// userData.CreatedAt = time.Unix(createdAt, 0)
 
 	if gID.Valid {
 		userData.Google = &GoogleUser{
@@ -275,3 +219,50 @@ func (r *SQLiteUserRepository) Update(ctx context.Context, user *User) error {
 
 	return nil
 }
+
+// func (r *SQLiteUserRepository) GetByID(ctx context.Context, userID string) (*User, error) {
+// 	query := `SELECT u.id, u.name, u.email, u.password_hash, u.version, u.created_at,
+// 		gu.google_id, gu.name, gu.given_name, gu.family_name, gu.picture, gu.is_verified, gu.created_at
+// 		FROM users u
+// 		LEFT JOIN google_users_data gu ON gu.user_id = u.id
+// 		WHERE id = ?`
+// 	var userData User
+// 	var gID, gName, gGivenName, gFamilyName, gPicture sql.NullString
+// 	var gVerified sql.NullBool
+// 	var googlCreatedAt sql.NullInt64
+// 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+// 		&userData.ID,
+// 		&userData.Name,
+// 		&userData.Email,
+// 		&userData.Password.Hash,
+// 		&userData.Version,
+// 		&userData.CreatedAt,
+// 		&gID,
+// 		&gName,
+// 		&gGivenName,
+// 		&gFamilyName,
+// 		&gPicture,
+// 		&gVerified,
+// 		&googlCreatedAt,
+// 	)
+// 	if err != nil {
+// 		if errors.Is(err, sql.ErrNoRows) {
+// 			return nil, data.ErrNotFound
+// 		}
+// 		return nil, err
+// 	}
+// 	if gID.Valid {
+// 		userData.Google = &GoogleUser{
+// 			UserID:        userData.ID,
+// 			ID:            gID.String,
+// 			Email:         userData.Email,
+// 			VerifiedEmail: gVerified.Bool,
+// 			FamilyName:    gFamilyName.String,
+// 			Name:          gName.String,
+// 			GivenName:     gGivenName.String,
+// 			Picture:       gPicture.String,
+// 			CreatedAt:     googlCreatedAt.Int64,
+// 		}
+// 	}
+// 	return &userData, err
+// }

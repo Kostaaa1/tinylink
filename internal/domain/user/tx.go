@@ -3,15 +3,13 @@ package user
 import (
 	"database/sql"
 	"errors"
-
-	"github.com/jmoiron/sqlx"
 )
 
 type RepositoryProvider struct {
-	db *sqlx.DB
+	db *sql.DB
 }
 
-func NewRepositoryProvider(db *sqlx.DB) *RepositoryProvider {
+func NewRepositoryProvider(db *sql.DB) *RepositoryProvider {
 	return &RepositoryProvider{db: db}
 }
 
@@ -30,7 +28,7 @@ func (tp *RepositoryProvider) GetAdapters() Adapters {
 	}
 }
 
-func runInTx(db *sqlx.DB, fn func(tx *sql.Tx) error) error {
+func runInTx(db *sql.DB, fn func(tx *sql.Tx) error) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err

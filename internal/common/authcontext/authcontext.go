@@ -16,7 +16,7 @@ func WithClaims(ctx context.Context, claims *token.Claims) context.Context {
 	return context.WithValue(ctx, claimsKey, claims)
 }
 
-func GetClaims(ctx context.Context) *token.Claims {
+func Claims(ctx context.Context) *token.Claims {
 	return ctx.Value(claimsKey).(*token.Claims)
 }
 
