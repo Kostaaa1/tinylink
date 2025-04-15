@@ -18,6 +18,7 @@ type Repository interface {
 
 type RedisRepository interface {
 	Repository
+	// always unique
 	GenerateAlias(ctx context.Context) (string, error)
 	Exists(ctx context.Context, alias string) (bool, error)
 }

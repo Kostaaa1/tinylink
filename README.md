@@ -31,6 +31,10 @@ URL Shortener
 	- redis cached for 6 hours when accesed (avoids db call for frequently accessed tinylinks)
 	- Support for bulk inserts (multipart-form for json/yaml/xml/csv) - only for authenticated users
 
+## TODO: 
+- redis/short ttl
+- in tinylink service, instead using Get for checking if exists use Exsits()
+
 ## What i've learned
 ** JWT **
 - compact, self-contained way to represent claims between 2 parties securely. Mainly used for authn and authz in stateless systems.

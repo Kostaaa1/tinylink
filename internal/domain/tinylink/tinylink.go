@@ -22,7 +22,7 @@ type Tinylink struct {
 	URL         string
 	UserID      *string
 	Private     bool
-	UsageCount  int
+	UsageCount  uint64
 	Domain      *string
 	Version     uint64
 	LastVisited int64
@@ -47,6 +47,7 @@ func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
 
 type UpdateTinylinkRequest struct {
 	ID      uint64 `json:"id"`
+	URL     string `json:"url"`
 	Alias   string `json:"alias"`
 	Private bool   `json:"private"`
 	Domain  string `json:"domain"`

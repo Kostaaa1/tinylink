@@ -63,8 +63,8 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 			Picture:       gPicture.String,
 			CreatedAt:     googlCreatedAt.Int64,
 		}
-
 	}
+	fmt.Println("GET BY EMAIL :", userData, userData.CreatedAt)
 
 	return userData, err
 }
@@ -113,7 +113,6 @@ func (r *SQLiteUserRepository) Insert(ctx context.Context, user *User) error {
                 RETURNING id, created_at, version`
 
 	args := []interface{}{user.Name, user.Email, user.Password.Hash}
-
 	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version); err != nil {
 		if isUniqueConstraintErr(err) {
 			return data.ErrRecordExists

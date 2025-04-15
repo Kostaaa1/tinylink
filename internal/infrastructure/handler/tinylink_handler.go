@@ -30,7 +30,7 @@ type TinylinkDTO struct {
 	URL         string     `json:"original_url"`
 	UserID      uint64     `json:"user_id,omitempty"`
 	Private     bool       `json:"private"`
-	UsageCount  int        `json:"usage_count"`
+	UsageCount  uint64     `json:"usage_count"`
 	Domain      string     `json:"domain,omitempty"`
 	Version     uint64     `json:"version"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -39,7 +39,7 @@ type TinylinkDTO struct {
 }
 
 func toDTOList(links []*tinylink.Tinylink) []TinylinkDTO {
-	var tl []TinylinkDTO
+	tl := make([]TinylinkDTO, len(links))
 	for _, link := range links {
 		tl = append(tl, toDTO(link))
 	}
@@ -116,7 +116,6 @@ func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 	claims := authcontext.Claims(ctx)
-	fmt.Print("list:?? ")
 
 	links, err := h.service.List(ctx, claims)
 	if err != nil {
@@ -162,7 +161,7 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, tl, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, toDTO(tl), nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -213,6 +212,8 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	var URL string
 
 	if strings.HasPrefix(r.URL.Path, "/p/") {
+		fmt.Println("redirecting to private: ", alias)
+
 		claims := authcontext.ClaimsFromCtx(ctx)
 		if claims == nil {
 			h.UnauthorizedResponse(w, r)
@@ -224,6 +225,7 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		fmt.Println("redirecting to public: ", alias)
 		URL, err = h.service.Redirect(ctx, alias)
 		if err != nil {
 			h.ServerErrorResponse(w, r, err)

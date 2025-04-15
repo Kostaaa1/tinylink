@@ -35,7 +35,7 @@ func NewService(provider provider, tokenRepo token.TokenRepository) *Service {
 	}
 }
 
-func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser) (UserDTO, error) {
+func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser) (*User, error) {
 	user := &User{
 		Name:   googleUser.Name,
 		Email:  googleUser.Email,
@@ -58,63 +58,65 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 		return nil
 	})
 
-	return NewUserDTO(user), err
+	return user, err
 }
 
-func (s *Service) Register(ctx context.Context, req *RegisterRequest) (UserDTO, error) {
-	user := &User{Email: req.Email, Name: req.Name}
-	if err := user.Password.Set(req.Password); err != nil {
-		return UserDTO{}, nil
+func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*User, error) {
+	userData := &User{Email: req.Email, Name: req.Name}
+	if err := userData.Password.Set(req.Password); err != nil {
+		return nil, err
 	}
 
 	err := s.provider.WithTransaction(func(adapters Adapters) error {
-		fetched, err := adapters.UserDbRepository.GetByEmail(ctx, user.Email)
+		fetched, err := adapters.UserDbRepository.GetByEmail(ctx, req.Email)
 		if err != nil {
 			if errors.Is(err, data.ErrNotFound) {
-				return adapters.UserDbRepository.Insert(ctx, user)
+				return adapters.UserDbRepository.Insert(ctx, userData)
 			}
 			return err
 		}
-		if fetched != nil {
-			user.ID = fetched.ID
-			return adapters.UserDbRepository.Update(ctx, user)
+		if len(fetched.Password.Hash) == 0 {
+			fmt.Println("found user and updating password hash")
+			fetched.Password = userData.Password
+			userData = fetched
+			return adapters.UserDbRepository.Update(ctx, userData)
 		}
 		return ErrDuplicateEmail
 	})
 
 	if err != nil {
-		return UserDTO{}, nil
+		return nil, err
 	}
 
-	return NewUserDTO(user), nil
+	return userData, nil
 }
 
-func (s *Service) Login(ctx context.Context, email, password string) (UserDTO, string, string, error) {
+func (s *Service) Login(ctx context.Context, email, password string) (*User, string, string, error) {
 	userData, err := s.userDb.GetByEmail(ctx, email)
 	if err != nil {
-		return UserDTO{}, "", "", err
+		return nil, "", "", err
 	}
 
 	if len(userData.Password.Hash) > 0 {
 		matches, _ := userData.Password.Matches(password)
 		if !matches {
-			return UserDTO{}, "", "", ErrInvalidCredentials
+			return nil, "", "", ErrInvalidCredentials
 		}
 	} else {
-		return UserDTO{}, "", "", ErrNoUserPasswordSet
+		return nil, "", "", ErrNoUserPasswordSet
 	}
 
 	refreshToken := token.GenerateRefreshToken()
 	if err := s.tokenRepo.Save(ctx, strconv.FormatUint(userData.ID, 10), refreshToken); err != nil {
-		return UserDTO{}, "", "", err
+		return nil, "", "", err
 	}
 
 	accessToken, _, err := token.GenerateAccessToken(userData.ID)
 	if err != nil {
-		return UserDTO{}, "", "", err
+		return nil, "", "", err
 	}
 
-	return NewUserDTO(userData), accessToken, refreshToken, err
+	return userData, accessToken, refreshToken, err
 }
 
 func (s *Service) ChangePassword(ctx context.Context, newPW string) error {

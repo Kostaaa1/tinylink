@@ -3,7 +3,6 @@ package user
 import (
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/validator"
 	"golang.org/x/crypto/bcrypt"
@@ -15,65 +14,26 @@ var (
 	ErrNoUserPasswordSet  = errors.New("password not set for user")
 )
 
-func NewUserDTO(user *User) UserDTO {
-	dto := UserDTO{
-		ID:        user.ID,
-		Email:     user.Email,
-		Name:      user.Name,
-		CreatedAt: time.Unix(user.CreatedAt, 0),
-	}
-	if user.Google != nil {
-		dto.Google = &GoogleUserDTO{
-			ID:            user.Google.ID,
-			Name:          user.Google.Name,
-			Picture:       user.Google.Picture,
-			FamilyName:    user.Google.FamilyName,
-			GivenName:     user.Google.GivenName,
-			VerifiedEmail: user.Google.VerifiedEmail,
-			CreatedAt:     time.Unix(user.Google.CreatedAt, 0),
-		}
-	}
-	return dto
-}
-
-type UserDTO struct {
-	ID        uint64         `json:"id"`
-	CreatedAt time.Time      `json:"created_at"`
-	Name      string         `json:"name"`
-	Email     string         `json:"email"`
-	Google    *GoogleUserDTO `json:"google,omitempty"`
-}
-
-type GoogleUserDTO struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	GivenName     string    `json:"given_name"`
-	FamilyName    string    `json:"family_name"`
-	Picture       string    `json:"picture"`
-	VerifiedEmail bool      `json:"is_verified"`
-	CreatedAt     time.Time `json:"created_at"`
-}
-
 type GoogleUser struct {
-	UserID        uint64 `json:"-"`
-	ID            string `json:"id"`
-	Email         string `json:"email"`
-	VerifiedEmail bool   `json:"is_verified"`
-	Name          string `json:"name"`
-	GivenName     string `json:"given_name"`
-	FamilyName    string `json:"family_name"`
-	Picture       string `json:"picture"`
-	CreatedAt     int64  `json:"created_at"`
+	UserID        uint64
+	ID            string
+	Email         string
+	VerifiedEmail bool
+	Name          string
+	GivenName     string
+	FamilyName    string
+	Picture       string
+	CreatedAt     int64
 }
 
 type User struct {
-	ID        uint64      `json:"id"`
-	Name      string      `json:"name"`
-	Email     string      `json:"email"`
-	Password  password    `json:"-"`
-	CreatedAt int64       `json:"created_at"`
-	Version   int         `json:"version"`
-	Google    *GoogleUser `json:"google"`
+	ID        uint64
+	Name      string
+	Email     string
+	Password  password
+	CreatedAt int64
+	Version   int
+	Google    *GoogleUser
 }
 
 type password struct {

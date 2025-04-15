@@ -47,24 +47,24 @@ func (s *Service) List(ctx context.Context, claims *token.Claims) ([]*Tinylink, 
 	return s.db.List(ctx, claims.UserID)
 }
 
-func (s *Service) checkIfAliasExists(ctx context.Context, userID *string, alias string) error {
-	exists, err := s.redis.Exists(ctx, alias)
-	if err != nil && err != data.ErrNotFound {
-		return err
-	}
-	if exists {
-		return ErrAliasExists
+func (s *Service) checkAlias(ctx context.Context, userID *string, alias string, isPrivate bool) error {
+	if !isPrivate {
+		exists, err := s.redis.Exists(ctx, alias)
+		if err != nil && err != data.ErrNotFound {
+			return err
+		}
+		if exists {
+			return ErrAliasExists
+		}
 	}
 
-	exists, err = s.db.Exists(ctx, userID, alias)
-	fmt.Println("EXISTS FROM SQLITE: ", exists, userID, alias)
+	exists, err := s.db.Exists(ctx, userID, alias)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return ErrAliasExists
 	}
-
 	return nil
 }
 
@@ -81,6 +81,14 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		userID = &claims.UserID
 	}
 
+	hasUserID := claims != nil && claims.UserID != ""
+	if hasUserID {
+		tl.UserID = &claims.UserID
+	} else {
+		tl.Private = false
+		tl.ExpiresAt = time.Now().Add(time.Duration(anonTTL)).Unix()
+	}
+
 	if tl.Alias == "" {
 		alias, err := s.redis.GenerateAlias(ctx)
 		if err != nil {
@@ -88,20 +96,16 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		}
 		tl.Alias = alias
 	} else {
-		if err := s.checkIfAliasExists(ctx, userID, tl.Alias); err != nil {
+		if err := s.checkAlias(ctx, userID, tl.Alias, tl.Private); err != nil {
 			return nil, err
 		}
 	}
 
-	hasUserID := claims != nil && claims.UserID != ""
 	if hasUserID {
-		tl.UserID = &claims.UserID
 		if err := s.db.Insert(ctx, tl); err != nil {
 			return nil, err
 		}
 	} else {
-		tl.Private = false
-		tl.ExpiresAt = time.Now().Add(time.Duration(anonTTL)).Unix()
 		if err := s.redis.Insert(ctx, tl); err != nil {
 			return nil, err
 		}
@@ -111,24 +115,31 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 }
 
 func (s *Service) Update(ctx context.Context, claims *token.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
+	fmt.Println("UPDATE REQUEST: ", req)
 	tl := &Tinylink{
 		ID:      req.ID,
+		URL:     req.URL,
 		Alias:   req.Alias,
 		Domain:  &req.Domain,
 		Private: req.Private,
 		UserID:  &claims.UserID,
 	}
 
-	s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
+	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
 		fetched, err := dbAdapters.TinylinkDBRepository.Get(ctx, tl.Alias)
 		if err != nil && err != data.ErrNotFound {
 			return err
 		}
-		if fetched != nil {
+		if fetched != nil && fetched.ID != tl.ID {
 			return ErrAliasExists
 		}
 		return dbAdapters.TinylinkDBRepository.Update(ctx, tl)
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("FINISHED UPDATING: ", tl, tl.URL)
 
 	return tl, nil
 }

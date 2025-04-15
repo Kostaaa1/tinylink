@@ -3,6 +3,7 @@ package tinylink
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -14,12 +15,12 @@ type TinylinkSQLRepository struct {
 }
 
 type TinylinkDb struct {
-	ID          int            `db:"id"`
+	ID          uint64         `db:"id"`
 	Alias       string         `db:"alias"`
 	URL         string         `db:"original_url"`
 	UserID      sql.NullInt64  `db:"user_id"`
 	Private     bool           `db:"is_private"`
-	UsageCount  int            `db:"usage_count"`
+	UsageCount  uint64         `db:"usage_count"`
 	Domain      sql.NullString `db:"domain"`
 	Version     uint64         `db:"version"`
 	CreatedAt   int64          `db:"created_at"`
@@ -41,6 +42,7 @@ func fromDomain(tl *Tinylink) *TinylinkDb {
 		domain = sql.NullString{String: *tl.Domain, Valid: true}
 	}
 	return &TinylinkDb{
+		ID:          tl.ID,
 		Alias:       tl.Alias,
 		URL:         tl.URL,
 		UserID:      userID,
@@ -65,11 +67,13 @@ func isUniqueConstraintErr(err error) bool {
 
 func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error {
 	record := fromDomain(tl)
-	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ?, version = version + 1, expires_at = ? 
+	fmt.Println("UPDATE REPO CALLED: ", record)
+
+	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ?, original_url = ?, version = version + 1, expires_at = ? 
 	WHERE id = ? AND user_id = ?
 	RETURNING version`
 
-	args := []interface{}{record.Alias, record.Domain, record.Private, record.ExpiresAt, record.ID, record.UserID}
+	args := []interface{}{record.Alias, record.Domain, record.Private, record.URL, record.ExpiresAt, record.ID, record.UserID}
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.Version)
 
 	if err != nil {
@@ -152,10 +156,11 @@ func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID *string, alia
 			FROM tinylinks
 			WHERE (alias = ? AND is_private = 0) OR (alias = ? AND is_private = 1 AND user_id = ?)
 		`
-		args = []interface{}{alias, userID}
+		args = []interface{}{alias, alias, userID}
 	}
 
-	err := s.db.QueryRowContext(ctx, query, args...).Err()
+	var dummy int
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&dummy)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil
