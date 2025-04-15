@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS google_users_data (
 CREATE TABLE IF NOT EXISTS tinylinks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     alias TEXT NOT NULL,
+    -- is_custom_alias INTEGER NOT NULL
     original_url TEXT NOT NULL,
     user_id INTEGER NOT NULL,
     is_private INTEGER NOT NULL DEFAULT 0,

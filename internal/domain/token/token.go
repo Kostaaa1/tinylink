@@ -46,7 +46,7 @@ func SetHeaderAndCookie(w http.ResponseWriter, r *http.Request, refreshToken, ac
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionKey,
 		Value:    refreshToken,
-		Secure:   false, // true for https
+		Secure:   false,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",

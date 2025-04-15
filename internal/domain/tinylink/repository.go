@@ -19,14 +19,13 @@ type Repository interface {
 type RedisRepository interface {
 	Repository
 	GenerateAlias(ctx context.Context) (string, error)
-	// Insert(ctx context.Context, tl *Tinylink, ttl time.Duration) error
 	Exists(ctx context.Context, alias string) (bool, error)
 }
 
 type DBRepository interface {
 	Repository
-	// Insert(ctx context.Context, tl *Tinylink) error
 	Get(ctx context.Context, alias string) (*Tinylink, error)
+	Exists(ctx context.Context, userID *string, alias string) (bool, error)
 	List(ctx context.Context, userID string) ([]*Tinylink, error)
 	Delete(ctx context.Context, userID, id string) error
 	Update(ctx context.Context, tl *Tinylink) error

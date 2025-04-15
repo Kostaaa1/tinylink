@@ -3,6 +3,7 @@ package tinylink
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -46,14 +47,7 @@ func (s *Service) List(ctx context.Context, claims *token.Claims) ([]*Tinylink, 
 	return s.db.List(ctx, claims.UserID)
 }
 
-func (s *Service) checkIfAliasExists(ctx context.Context, alias string) error {
-	fetched, err := s.db.Get(ctx, alias)
-	if err != nil && err != data.ErrNotFound {
-		return err
-	}
-	if fetched != nil {
-		return ErrAliasExists
-	}
+func (s *Service) checkIfAliasExists(ctx context.Context, userID *string, alias string) error {
 	exists, err := s.redis.Exists(ctx, alias)
 	if err != nil && err != data.ErrNotFound {
 		return err
@@ -61,40 +55,56 @@ func (s *Service) checkIfAliasExists(ctx context.Context, alias string) error {
 	if exists {
 		return ErrAliasExists
 	}
+
+	exists, err = s.db.Exists(ctx, userID, alias)
+	fmt.Println("EXISTS FROM SQLITE: ", exists, userID, alias)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrAliasExists
+	}
+
 	return nil
 }
 
 func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
-		OriginalURL: req.OriginalURL,
-		Alias:       req.Alias,
-		Domain:      &req.Domain,
-		Private:     req.Private,
+		URL:     req.URL,
+		Alias:   req.Alias,
+		Domain:  &req.Domain,
+		Private: req.Private,
+	}
+
+	var userID *string
+	if claims != nil {
+		userID = &claims.UserID
+	}
+
+	if tl.Alias == "" {
+		alias, err := s.redis.GenerateAlias(ctx)
+		if err != nil {
+			return nil, err
+		}
+		tl.Alias = alias
+	} else {
+		if err := s.checkIfAliasExists(ctx, userID, tl.Alias); err != nil {
+			return nil, err
+		}
 	}
 
 	hasUserID := claims != nil && claims.UserID != ""
 	if hasUserID {
 		tl.UserID = &claims.UserID
+		if err := s.db.Insert(ctx, tl); err != nil {
+			return nil, err
+		}
 	} else {
 		tl.Private = false
 		tl.ExpiresAt = time.Now().Add(time.Duration(anonTTL)).Unix()
-	}
-
-	var err error
-	if tl.Alias == "" {
-		tl.Alias, err = s.redis.GenerateAlias(ctx)
-	} else {
-		if err := s.checkIfAliasExists(ctx, tl.Alias); err != nil {
+		if err := s.redis.Insert(ctx, tl); err != nil {
 			return nil, err
 		}
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.db.Insert(ctx, tl); err != nil {
-		return nil, err
 	}
 
 	return tl, nil
@@ -125,19 +135,19 @@ func (s *Service) Update(ctx context.Context, claims *token.Claims, req UpdateTi
 
 // Cache?????
 func (s *Service) RedirectPersonal(ctx context.Context, claims *token.Claims, alias string) (string, error) {
-	var originalURL string
+	var URL string
 	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
 		rowID, url, err := dbAdapters.TinylinkDBRepository.RedirectPersonal(ctx, claims.UserID, alias)
 		if err != nil {
 			return err
 		}
-		originalURL = url
+		URL = url
 		return dbAdapters.TinylinkDBRepository.UpdateUsage(ctx, rowID)
 	})
 	if err != nil {
 		return "", err
 	}
-	return originalURL, nil
+	return URL, nil
 }
 
 func (s *Service) Redirect(ctx context.Context, alias string) (string, error) {
@@ -154,7 +164,7 @@ func (s *Service) Redirect(ctx context.Context, alias string) (string, error) {
 			if rowID, url, err = dbAdapters.TinylinkDBRepository.Redirect(ctx, alias); err != nil {
 				return err
 			}
-			return s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, OriginalURL: url, ExpiresAt: int64(cacheTTL)})
+			return s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, URL: url, ExpiresAt: int64(cacheTTL)})
 		}
 
 		if url == "" {

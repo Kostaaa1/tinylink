@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ type TinylinkHandler struct {
 type TinylinkDTO struct {
 	ID          uint64     `json:"-"`
 	Alias       string     `json:"alias"`
-	OriginalURL string     `json:"original_url"`
+	URL         string     `json:"original_url"`
 	UserID      uint64     `json:"user_id,omitempty"`
 	Private     bool       `json:"private"`
 	UsageCount  int        `json:"usage_count"`
@@ -35,6 +36,14 @@ type TinylinkDTO struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	LastVisited *time.Time `json:"last_visited"`
 	ExpiresAt   *time.Time `json:"expires_at"`
+}
+
+func toDTOList(links []*tinylink.Tinylink) []TinylinkDTO {
+	var tl []TinylinkDTO
+	for _, link := range links {
+		tl = append(tl, toDTO(link))
+	}
+	return tl
 }
 
 func toDTO(tl *tinylink.Tinylink) TinylinkDTO {
@@ -63,7 +72,7 @@ func toDTO(tl *tinylink.Tinylink) TinylinkDTO {
 	return TinylinkDTO{
 		ID:          tl.ID,
 		Alias:       tl.Alias,
-		OriginalURL: tl.OriginalURL,
+		URL:         tl.URL,
 		UserID:      userID,
 		Private:     tl.Private,
 		UsageCount:  tl.UsageCount,
@@ -85,22 +94,29 @@ func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler errorhandl
 func (h TinylinkHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 	tinylinkRouter := r.PathPrefix("/tinylink").Subrouter()
 	tinylinkRouter.Use(auth.Middleware)
-	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
 	tinylinkRouter.HandleFunc("/list", h.List).Methods("GET")
+	tinylinkRouter.HandleFunc("/bulk-insert", h.BulkInsert).Methods("POST")
 	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
+	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
 
-	protectedRouter := r.PathPrefix("").Subrouter()
-	protectedRouter.Use(auth.Middleware)
-	protectedRouter.HandleFunc("/p/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
+	protectedRoute := r.PathPrefix("").Subrouter()
+	protectedRoute.Use(auth.Middleware)
+	protectedRoute.HandleFunc("/p/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 
 	r.HandleFunc("/{alias:[a-zA-Z0-9]+}", h.Redirect).Methods("GET")
 	r.HandleFunc("/tinylink/create", h.Create).Methods("POST")
+}
+
+// support for bulk inserts... accept multipart-form json/yaml/xml/csv files for it
+func (h TinylinkHandler) BulkInsert(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Called bulk insert!!!")
 }
 
 func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 	claims := authcontext.Claims(ctx)
+	fmt.Print("list:?? ")
 
 	links, err := h.service.List(ctx, claims)
 	if err != nil {
@@ -108,7 +124,7 @@ func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, links, nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, toDTOList(links), nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -128,6 +144,7 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
+
 	claims := authcontext.Claims(ctx)
 
 	tl, err := h.service.Update(ctx, claims, req)
@@ -193,7 +210,7 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	alias := mux.Vars(r)["alias"]
 
 	var err error
-	var originalURL string
+	var URL string
 
 	if strings.HasPrefix(r.URL.Path, "/p/") {
 		claims := authcontext.ClaimsFromCtx(ctx)
@@ -201,20 +218,20 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 			h.UnauthorizedResponse(w, r)
 			return
 		}
-		originalURL, err = h.service.RedirectPersonal(ctx, claims, alias)
+		URL, err = h.service.RedirectPersonal(ctx, claims, alias)
 		if err != nil {
 			h.ServerErrorResponse(w, r, err)
 			return
 		}
 	} else {
-		originalURL, err = h.service.Redirect(ctx, alias)
+		URL, err = h.service.Redirect(ctx, alias)
 		if err != nil {
 			h.ServerErrorResponse(w, r, err)
 			return
 		}
 	}
 
-	w.Header().Set("Location", originalURL)
+	w.Header().Set("Location", URL)
 	w.WriteHeader(http.StatusFound)
 }
 

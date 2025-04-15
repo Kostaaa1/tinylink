@@ -85,9 +85,9 @@ func TestTinylinkService(t *testing.T) {
 		claims := &token.Claims{UserID: userID}
 
 		req := tinylink.InsertTinylinkRequest{
-			OriginalURL: "https://example.com/another",
-			Alias:       "cc123",
-			Private:     false,
+			URL:     "https://example.com/another",
+			Alias:   "cc123",
+			Private: false,
 		}
 
 		tl, err := tlService.Insert(ctx, claims, req)
@@ -128,10 +128,10 @@ func TestTinylinKSQLite(t *testing.T) {
 
 	t.Run("Create and retrieve tinylink", func(t *testing.T) {
 		tl := &tinylink.Tinylink{
-			UserID:      &userID,
-			OriginalURL: "https://codingchallenges.fyi/challenges/challenge-json-parser/",
-			Alias:       "cc123",
-			Private:     false,
+			UserID:  &userID,
+			URL:     "https://codingchallenges.fyi/challenges/challenge-json-parser/",
+			Alias:   "cc123",
+			Private: false,
 		}
 		require.Nil(t, tlDb.Insert(ctx, tl))
 		require.NotZero(t, tl.CreatedAt)
@@ -146,10 +146,10 @@ func TestTinylinKSQLite(t *testing.T) {
 
 	t.Run("List all user tinylinks", func(t *testing.T) {
 		tl := &tinylink.Tinylink{
-			UserID:      &userID,
-			OriginalURL: "https://example.com/another",
-			Alias:       "321cc",
-			Private:     false,
+			UserID:  &userID,
+			URL:     "https://example.com/another",
+			Alias:   "321cc",
+			Private: false,
 		}
 		err := tlDb.Insert(ctx, tl)
 		require.Nil(t, err)
@@ -164,12 +164,12 @@ func TestTinylinKSQLite(t *testing.T) {
 
 	t.Run("Update tinylink", func(t *testing.T) {
 		tl := &tinylink.Tinylink{
-			ID:          insertedTlID,
-			UserID:      &userID,
-			OriginalURL: "https://example.com/another",
-			Alias:       "updateTest123",
-			Private:     true,
-			ExpiresAt:   time.Now().Add(time.Hour * 1).Unix(),
+			ID:        insertedTlID,
+			UserID:    &userID,
+			URL:       "https://example.com/another",
+			Alias:     "updateTest123",
+			Private:   true,
+			ExpiresAt: time.Now().Add(time.Hour * 1).Unix(),
 		}
 		require.Nil(t, tlDb.Update(ctx, tl))
 		require.True(t, tl.Private)

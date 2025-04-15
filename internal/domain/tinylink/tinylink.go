@@ -10,7 +10,7 @@ import (
 
 var (
 	anonTTL  = 30 * 24 * time.Hour
-	cacheTTL = 7 * 24 * time.Hour
+	cacheTTL = 6 * time.Hour
 
 	ErrAliasExists = errors.New("this alias is not available. All aliasses must be unique")
 	ErrURLExists   = errors.New("you've already created a tinylink with this URL")
@@ -19,7 +19,7 @@ var (
 type Tinylink struct {
 	ID          uint64
 	Alias       string
-	OriginalURL string
+	URL         string
 	UserID      *string
 	Private     bool
 	UsageCount  int
@@ -31,15 +31,15 @@ type Tinylink struct {
 }
 
 type InsertTinylinkRequest struct {
-	OriginalURL string `json:"url"`
-	Alias       string `json:"alias"`
-	Domain      string `json:"domain"`
-	Private     bool   `json:"private"`
+	URL     string `json:"url"`
+	Alias   string `json:"alias"`
+	Domain  string `json:"domain"`
+	Private bool   `json:"private"`
 }
 
 func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
-	v.Check(req.OriginalURL != "", "url", "must be provided")
-	_, err := url.ParseRequestURI(req.OriginalURL)
+	v.Check(req.URL != "", "url", "must be provided")
+	_, err := url.ParseRequestURI(req.URL)
 	v.Check(err == nil, "url", "invalid url format")
 	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
 	return v.Valid()
