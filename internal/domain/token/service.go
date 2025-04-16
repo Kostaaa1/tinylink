@@ -7,29 +7,29 @@ import (
 )
 
 type Service struct {
-	tokenRepo TokenRepository
+	tokenRepo Repository
 }
 
-func NewService(tokenRepo TokenRepository) *Service {
+func NewService(tokenRepo Repository) *Service {
 	return &Service{
 		tokenRepo: tokenRepo,
 	}
 }
 
-func (s *Service) RefreshTokens(ctx context.Context, userID, oldToken string) (string, string, *Claims, error) {
+func (s *Service) RefreshTokens(ctx context.Context, userID, oldToken string) (string, string, Claims, error) {
 	if err := s.tokenRepo.Valid(ctx, userID, oldToken); err != nil {
-		return "", "", nil, err
+		return "", "", Claims{}, err
 	}
 
 	newRT := GenerateRefreshToken()
 	if err := s.tokenRepo.Save(ctx, userID, newRT); err != nil {
-		return "", "", nil, err
+		return "", "", Claims{}, err
 	}
 
 	userIDInt, _ := strconv.ParseUint(userID, 10, 64)
 	newAT, newClaims, err := GenerateAccessToken(userIDInt)
 	if err != nil {
-		return "", "", nil, fmt.Errorf("failed to generate access token: %w", err)
+		return "", "", Claims{}, fmt.Errorf("failed to generate access token: %w", err)
 	}
 
 	return newRT, newAT, newClaims, nil

@@ -73,6 +73,10 @@ func (u *User) GetID() string {
 	return strconv.FormatUint(u.ID, 10)
 }
 
+func (u *User) HasPassword() bool {
+	return len(u.Password.Hash) > 0
+}
+
 func ValidateEmail(v *validator.Validator, email string) {
 	v.Check(email != "", "email", "must be provided")
 	v.Check(len(email) <= 254, "email", "must not be more then 254 bytes long")

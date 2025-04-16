@@ -20,7 +20,7 @@ type Tinylink struct {
 	ID          uint64
 	Alias       string
 	URL         string
-	UserID      *string
+	UserID      string
 	Private     bool
 	UsageCount  uint64
 	Domain      *string
@@ -46,16 +46,26 @@ func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
 }
 
 type UpdateTinylinkRequest struct {
-	ID      uint64 `json:"id"`
-	URL     string `json:"url"`
-	Alias   string `json:"alias"`
-	Private bool   `json:"private"`
-	Domain  string `json:"domain"`
+	ID      uint64  `json:"id"`
+	URL     *string `json:"url"`
+	Alias   *string `json:"alias"`
+	Domain  *string `json:"domain"`
+	Private bool    `json:"private"`
 }
 
 func (req *UpdateTinylinkRequest) IsValid(v *validator.Validator) bool {
 	v.Check(req.ID != 0, "id", "must be provided")
-	v.Check(req.Alias != "", "alias", "must be provided")
-	v.Check(!(req.Alias != "" && len(req.Alias) < 5), "alias", "must be at least 5 characters long")
+	if req.Alias != nil {
+		v.Check(*req.Alias != "", "alias", "must be provided")
+		v.Check(!(*req.Alias != "" && len(*req.Alias) < 5), "alias", "must be at least 5 characters long")
+	}
+	if req.URL != nil {
+		_, err := url.Parse(*req.URL)
+		v.Check(err == nil, "url", "wrong URL format")
+	}
+	if req.Domain != nil {
+		_, err := url.Parse(*req.Domain)
+		v.Check(err == nil, "domain", "wrong URL format")
+	}
 	return v.Valid()
 }

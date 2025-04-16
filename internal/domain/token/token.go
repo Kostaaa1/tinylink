@@ -31,7 +31,7 @@ type Claims struct {
 }
 
 // used in unprotected routes where user claims could be nil (tinylink.Create())
-func ClaimsFromRequest(r *http.Request) (*Claims, error) {
+func ClaimsFromRequest(r *http.Request) (Claims, error) {
 	bearer := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(bearer, "Bearer ")
 	return VerifyAccessToken(token)
@@ -71,10 +71,10 @@ func GetRefreshToken(r *http.Request) (string, error) {
 	return token.Value, nil
 }
 
-func GenerateAccessToken(userID uint64) (string, *Claims, error) {
+func GenerateAccessToken(userID uint64) (string, Claims, error) {
 	id := strconv.FormatUint(userID, 10)
 
-	claims := &Claims{
+	claims := Claims{
 		UserID: id,
 		JTI:    uuid.NewString(),
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -87,13 +87,13 @@ func GenerateAccessToken(userID uint64) (string, *Claims, error) {
 
 	signed, err := token.SignedString(jwtSecret)
 	if err != nil {
-		return "", nil, err
+		return "", Claims{}, err
 	}
 
 	return signed, claims, nil
 }
 
-func VerifyAccessToken(tokenStr string) (*Claims, error) {
+func VerifyAccessToken(tokenStr string) (Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
@@ -101,13 +101,13 @@ func VerifyAccessToken(tokenStr string) (*Claims, error) {
 		return jwtSecret, nil
 	})
 	if err != nil {
-		return nil, err
+		return Claims{}, err
 	}
 	if !token.Valid {
-		return nil, ErrAccessTokenExpired
+		return Claims{}, ErrAccessTokenExpired
 	}
 	if claims, ok := token.Claims.(*Claims); ok {
-		return claims, nil
+		return *claims, nil
 	}
-	return nil, errors.New("access token not found??")
+	return Claims{}, errors.New("access token not found??")
 }

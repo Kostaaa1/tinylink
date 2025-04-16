@@ -26,7 +26,7 @@ type RedisRepository interface {
 type DBRepository interface {
 	Repository
 	Get(ctx context.Context, alias string) (*Tinylink, error)
-	Exists(ctx context.Context, userID *string, alias string) (bool, error)
+	Exists(ctx context.Context, userID string, alias string) (bool, error)
 	List(ctx context.Context, userID string) ([]*Tinylink, error)
 	Delete(ctx context.Context, userID, id string) error
 	Update(ctx context.Context, tl *Tinylink) error

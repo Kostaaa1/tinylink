@@ -3,7 +3,6 @@ package tinylink
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -43,11 +42,11 @@ func NewService(provider provider) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context, claims *token.Claims) ([]*Tinylink, error) {
+func (s *Service) List(ctx context.Context, claims token.Claims) ([]*Tinylink, error) {
 	return s.db.List(ctx, claims.UserID)
 }
 
-func (s *Service) checkAlias(ctx context.Context, userID *string, alias string, isPrivate bool) error {
+func (s *Service) checkAlias(ctx context.Context, userID string, alias string, isPrivate bool) error {
 	if !isPrivate {
 		exists, err := s.redis.Exists(ctx, alias)
 		if err != nil && err != data.ErrNotFound {
@@ -68,7 +67,7 @@ func (s *Service) checkAlias(ctx context.Context, userID *string, alias string, 
 	return nil
 }
 
-func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Insert(ctx context.Context, claims token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		URL:     req.URL,
 		Alias:   req.Alias,
@@ -76,14 +75,9 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		Private: req.Private,
 	}
 
-	var userID *string
-	if claims != nil {
-		userID = &claims.UserID
-	}
-
-	hasUserID := claims != nil && claims.UserID != ""
+	hasUserID := claims.UserID != ""
 	if hasUserID {
-		tl.UserID = &claims.UserID
+		tl.UserID = claims.UserID
 	} else {
 		tl.Private = false
 		tl.ExpiresAt = time.Now().Add(time.Duration(anonTTL)).Unix()
@@ -96,7 +90,7 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 		}
 		tl.Alias = alias
 	} else {
-		if err := s.checkAlias(ctx, userID, tl.Alias, tl.Private); err != nil {
+		if err := s.checkAlias(ctx, tl.UserID, tl.Alias, tl.Private); err != nil {
 			return nil, err
 		}
 	}
@@ -114,15 +108,23 @@ func (s *Service) Insert(ctx context.Context, claims *token.Claims, req InsertTi
 	return tl, nil
 }
 
-func (s *Service) Update(ctx context.Context, claims *token.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
-	fmt.Println("UPDATE REQUEST: ", req)
+func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		ID:      req.ID,
-		URL:     req.URL,
-		Alias:   req.Alias,
-		Domain:  &req.Domain,
+		UserID:  claims.UserID,
 		Private: req.Private,
-		UserID:  &claims.UserID,
+		// URL:     req.URL,
+		// Alias:   req.Alias,
+		// Domain:  &req.Domain,
+	}
+	if req.Domain != nil {
+		tl.Domain = req.Domain
+	}
+	if req.Alias != nil {
+		tl.Alias = *req.Alias
+	}
+	if req.URL != nil {
+		tl.URL = *req.URL
 	}
 
 	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
@@ -139,13 +141,11 @@ func (s *Service) Update(ctx context.Context, claims *token.Claims, req UpdateTi
 		return nil, err
 	}
 
-	fmt.Println("FINISHED UPDATING: ", tl, tl.URL)
-
 	return tl, nil
 }
 
 // Cache?????
-func (s *Service) RedirectPersonal(ctx context.Context, claims *token.Claims, alias string) (string, error) {
+func (s *Service) RedirectPersonal(ctx context.Context, claims token.Claims, alias string) (string, error) {
 	var URL string
 	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
 		rowID, url, err := dbAdapters.TinylinkDBRepository.RedirectPersonal(ctx, claims.UserID, alias)
@@ -222,6 +222,6 @@ func (s *Service) Redirect(ctx context.Context, alias string) (string, error) {
 // 	return tl, nil
 // }
 
-func (s *Service) Delete(ctx context.Context, claims *token.Claims, alias string) error {
+func (s *Service) Delete(ctx context.Context, claims token.Claims, alias string) error {
 	return s.db.Delete(ctx, claims.UserID, alias)
 }

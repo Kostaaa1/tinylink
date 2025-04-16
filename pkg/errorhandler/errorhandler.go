@@ -2,7 +2,6 @@ package errorhandler
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 )
@@ -59,7 +58,6 @@ func (h ErrorHandler) ErrorResponse(w http.ResponseWriter, r *http.Request, stat
 
 func (h ErrorHandler) ServerErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
 	h.logError(r, err)
-	fmt.Println(err)
 	h.ErrorResponse(w, r, http.StatusInternalServerError, "the server encountered a problem and could not process your request")
 }
 

@@ -23,10 +23,10 @@ type provider interface {
 type Service struct {
 	provider  provider
 	userDb    UserRepository
-	tokenRepo token.TokenRepository
+	tokenRepo token.Repository
 }
 
-func NewService(provider provider, tokenRepo token.TokenRepository) *Service {
+func NewService(provider provider, tokenRepo token.Repository) *Service {
 	adapters := provider.GetAdapters()
 	return &Service{
 		provider:  provider,
@@ -43,43 +43,61 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 	}
 
 	err := s.provider.WithTransaction(func(adapters Adapters) error {
-		fetchedUser, err := adapters.UserDbRepository.GetByEmail(ctx, user.Email)
+		existingUser, err := adapters.UserDbRepository.GetByEmail(ctx, user.Email)
+
 		if err != nil {
 			if errors.Is(err, data.ErrNotFound) {
 				if err := adapters.UserDbRepository.Insert(ctx, user); err != nil {
-					if !errors.Is(err, data.ErrRecordExists) {
-						return fmt.Errorf("failed to insert user: %w", err)
-					}
+					return fmt.Errorf("failed to insert user: %w", err)
 				}
 			}
 		} else {
-			user = fetchedUser
+			if existingUser.Google == nil {
+				user.Google.UserID = existingUser.ID
+				if err := adapters.UserDbRepository.InsertGoogleUser(ctx, user.Google); err != nil {
+					return fmt.Errorf("failed to insert google user: %w", err)
+				}
+			}
 		}
+
+		user, err = adapters.UserDbRepository.GetByEmail(ctx, user.Email)
+		if err != nil {
+			return err
+		}
+
 		return nil
 	})
 
-	return user, err
-}
-
-func (s *Service) Register(ctx context.Context, req *RegisterRequest) (*User, error) {
-	userData := &User{Email: req.Email, Name: req.Name}
-	if err := userData.Password.Set(req.Password); err != nil {
+	if err != nil {
 		return nil, err
 	}
 
+	return user, nil
+}
+
+func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, error) {
+	userData := &User{Email: req.Email, Name: req.Name}
+	if req.Password != "" {
+		if err := userData.Password.Set(req.Password); err != nil {
+			return nil, err
+		}
+	}
+
 	err := s.provider.WithTransaction(func(adapters Adapters) error {
-		fetched, err := adapters.UserDbRepository.GetByEmail(ctx, req.Email)
+		existingUser, err := adapters.UserDbRepository.GetByEmail(ctx, req.Email)
 		if err != nil {
 			if errors.Is(err, data.ErrNotFound) {
 				return adapters.UserDbRepository.Insert(ctx, userData)
 			}
 			return err
 		}
-		if len(fetched.Password.Hash) == 0 {
-			fmt.Println("found user and updating password hash")
-			fetched.Password = userData.Password
-			userData = fetched
-			return adapters.UserDbRepository.Update(ctx, userData)
+		if !existingUser.HasPassword() {
+			existingUser.Password = userData.Password
+			userData = existingUser
+			if err := adapters.UserDbRepository.Update(ctx, userData); err != nil {
+				return err
+			}
+			return nil
 		}
 		return ErrDuplicateEmail
 	})

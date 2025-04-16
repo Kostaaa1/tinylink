@@ -14,6 +14,32 @@ type SQLiteUserRepository struct {
 	db db
 }
 
+type userDB struct {
+}
+
+func fromDomain(user *User) userDB {
+	return userDB{}
+}
+
+func (r *SQLiteUserRepository) Exists(ctx context.Context, email string, checkGoogle bool) (bool, error) {
+	var query string
+	if checkGoogle {
+		query = `SELECT 1 FROM users WHERE email = ?`
+	} else {
+		query = `SELECT 1 FROM google_users_data WHERE email = ?`
+	}
+
+	var dummy int
+	err := r.db.QueryRowContext(ctx, query, email).Scan(&dummy)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `SELECT u.id, u.name, u.email, u.password_hash, u.version, u.created_at,
 		gu.google_id, gu.name, gu.given_name, gu.family_name, gu.picture, gu.is_verified, gu.created_at 
@@ -64,38 +90,8 @@ func (r *SQLiteUserRepository) GetByEmail(ctx context.Context, email string) (*U
 			CreatedAt:     googlCreatedAt.Int64,
 		}
 	}
-	fmt.Println("GET BY EMAIL :", userData, userData.CreatedAt)
 
-	return userData, err
-}
-
-func (r *SQLiteUserRepository) GetGoogleUser(ctx context.Context, email string) (*GoogleUser, error) {
-	query := `SELECT user_id, google_id, email, name, given_name, family_name, picture, is_verified, created_at 
-		FROM google_users_data WHERE email = ?`
-
-	var gUser GoogleUser
-	var isVerified sql.NullBool
-
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&gUser.UserID,
-		&gUser.ID,
-		&gUser.Email,
-		&gUser.Name,
-		&gUser.GivenName,
-		&gUser.FamilyName,
-		&gUser.Picture,
-		&isVerified,
-		&gUser.CreatedAt,
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, data.ErrNotFound
-		}
-		return nil, err
-	}
-	gUser.VerifiedEmail = isVerified.Bool
-
-	return &gUser, nil
+	return userData, nil
 }
 
 func isUniqueConstraintErr(err error) bool {
@@ -150,9 +146,9 @@ func (r *SQLiteUserRepository) Insert(ctx context.Context, user *User) error {
 
 func (r *SQLiteUserRepository) InsertGoogleUser(ctx context.Context, googleUser *GoogleUser) error {
 	query := `INSERT INTO google_users_data
-	              (user_id, google_id, email, name, given_name, family_name, picture, is_verified)
-	              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	              RETURNING google_users_data.created_at`
+			(user_id, google_id, email, name, given_name, family_name, picture, is_verified)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			RETURNING google_users_data.created_at`
 
 	args := []interface{}{
 		googleUser.UserID,

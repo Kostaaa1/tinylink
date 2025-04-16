@@ -3,7 +3,6 @@ package tinylink
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -30,8 +29,8 @@ type TinylinkDb struct {
 
 func fromDomain(tl *Tinylink) *TinylinkDb {
 	var userID sql.NullInt64
-	if tl.UserID != nil {
-		if parsedID, err := strconv.ParseInt(*tl.UserID, 10, 64); err == nil {
+	if tl.UserID != "" {
+		if parsedID, err := strconv.ParseInt(tl.UserID, 10, 64); err == nil {
 			userID = sql.NullInt64{Int64: parsedID, Valid: true}
 		} else {
 			userID = sql.NullInt64{Valid: false}
@@ -67,7 +66,6 @@ func isUniqueConstraintErr(err error) bool {
 
 func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error {
 	record := fromDomain(tl)
-	fmt.Println("UPDATE REPO CALLED: ", record)
 
 	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ?, original_url = ?, version = version + 1, expires_at = ? 
 	WHERE id = ? AND user_id = ?
@@ -139,11 +137,11 @@ func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tin
 	return tinylinks, nil
 }
 
-func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID *string, alias string) (bool, error) {
+func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID string, alias string) (bool, error) {
 	var query string
 	var args []interface{}
 
-	if userID == nil {
+	if userID == "" {
 		query = `
 			SELECT 1
 			FROM tinylinks

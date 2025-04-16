@@ -12,19 +12,20 @@ var (
 	claimsKey contextKey = "claims"
 )
 
-func WithClaims(ctx context.Context, claims *token.Claims) context.Context {
+func WithClaims(ctx context.Context, claims token.Claims) context.Context {
 	return context.WithValue(ctx, claimsKey, claims)
 }
 
-func Claims(ctx context.Context) *token.Claims {
-	return ctx.Value(claimsKey).(*token.Claims)
+func Claims(ctx context.Context) token.Claims {
+	return ctx.Value(claimsKey).(token.Claims)
 }
 
-func ClaimsFromCtx(ctx context.Context) *token.Claims {
-	claims, _ := ctx.Value(claimsKey).(*token.Claims)
+func ClaimsFromCtx(ctx context.Context) token.Claims {
+	claims, _ := ctx.Value(claimsKey).(token.Claims)
 	return claims
 }
 
 func IsAuthenticated(ctx context.Context) bool {
-	return ClaimsFromCtx(ctx) != nil
+	claims, ok := ctx.Value(claimsKey).(token.Claims)
+	return ok && claims.UserID != ""
 }

@@ -40,16 +40,16 @@ type TinylinkDTO struct {
 
 func toDTOList(links []*tinylink.Tinylink) []TinylinkDTO {
 	tl := make([]TinylinkDTO, len(links))
-	for _, link := range links {
-		tl = append(tl, toDTO(link))
+	for i, link := range links {
+		tl[i] = toDTO(link)
 	}
 	return tl
 }
 
 func toDTO(tl *tinylink.Tinylink) TinylinkDTO {
 	var userID uint64
-	if tl.UserID != nil {
-		userID, _ = strconv.ParseUint(*tl.UserID, 10, 64)
+	if tl.UserID != "" {
+		userID, _ = strconv.ParseUint(tl.UserID, 10, 64)
 	}
 
 	var domain string
@@ -212,20 +212,18 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	var URL string
 
 	if strings.HasPrefix(r.URL.Path, "/p/") {
-		fmt.Println("redirecting to private: ", alias)
-
 		claims := authcontext.ClaimsFromCtx(ctx)
-		if claims == nil {
+		if claims.UserID == "" {
 			h.UnauthorizedResponse(w, r)
 			return
 		}
+
 		URL, err = h.service.RedirectPersonal(ctx, claims, alias)
 		if err != nil {
 			h.ServerErrorResponse(w, r, err)
 			return
 		}
 	} else {
-		fmt.Println("redirecting to public: ", alias)
 		URL, err = h.service.Redirect(ctx, alias)
 		if err != nil {
 			h.ServerErrorResponse(w, r, err)
