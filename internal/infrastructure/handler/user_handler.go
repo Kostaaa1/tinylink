@@ -92,11 +92,11 @@ func (h UserHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 	protected.Use(auth.Middleware)
 	protected.HandleFunc("/change-password", h.ChangePassword).Methods("POST")
 	protected.HandleFunc("/logout", h.Logout).Methods("POST")
-	protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
+	// protected.HandleFunc("/refresh-token", h.HandleRefreshToken).Methods("GET")
 }
 
-func (h UserHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
-}
+// func (h UserHandler) HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
+// }
 
 func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

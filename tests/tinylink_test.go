@@ -3,11 +3,16 @@ package tinylink_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
+	"github.com/Kostaaa1/tinylink/internal/domain/token"
+	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/redis/go-redis/v9"
@@ -55,15 +60,77 @@ func setupRedisDB(t *testing.T) *redis.Client {
 	return redisClient
 }
 
-// func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepository) *user.User {
-// 	mockUser := &user.User{
-// 		Email: fmt.Sprintf("testuser%d@gmail.com", rand.Intn(100)),
-// 		Name:  "TestUser",
-// 	}
-// 	mockUser.Password.Set("test123")
-// 	require.Nil(t, userDb.Insert(ctx, mockUser))
-// 	return mockUser
-// }
+func TestTinylinkRepository_Update(t *testing.T) {
+	db := setupTestDB(t)
+	redis := setupRedisDB(t)
+
+	provider := tinylink.NewRepositoryProvider(db, redis)
+	tlService := tinylink.NewService(provider)
+
+	ctx := context.Background()
+
+	userProvider := user.NewRepositoryProvider(db)
+	userDb := userProvider.GetAdapters().UserDbRepository
+	user1 := createMockUser(t, ctx, userDb)
+
+	mockUrl := "https://medium.com/nerd-for-tech/redis-getting-notified-when-a-key-is-expired-or-changed-ca3e1f1c7f0a"
+
+	emptyClaims := token.Claims{}
+	tl1, err := tlService.Insert(ctx, emptyClaims, tinylink.InsertTinylinkRequest{
+		URL:     mockUrl,
+		Alias:   "extra",
+		Private: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, tl1)
+	require.False(t, tl1.Private) // no user id, so it will automatically be public
+
+	claims := token.Claims{UserID: user1.GetID()}
+
+	req := &tinylink.InsertTinylinkRequest{
+		URL:   mockUrl,
+		Alias: "extra",
+	}
+	tl2, err := tlService.Insert(ctx, claims, *req)
+	require.Error(t, err)
+	require.Equal(t, err, tinylink.ErrAliasExists)
+	require.Nil(t, tl2)
+
+	req.Private = true
+	tl3, err := tlService.Insert(ctx, claims, *req)
+	require.NoError(t, err)
+	require.NotNil(t, tl3)
+	require.True(t, tl3.Private)
+	require.Equal(t, tl3.URL, mockUrl)
+	require.Equal(t, tl3.Alias, "extra")
+	require.Greater(t, tl3.CreatedAt, int64(0))
+
+	req.Private = true
+	tl4, err := tlService.Insert(ctx, claims, *req)
+	require.Error(t, err)
+	require.Equal(t, err, tinylink.ErrAliasExists)
+	require.Nil(t, tl4)
+
+	tl5, err := tlService.Update(ctx, claims, tinylink.UpdateTinylinkRequest{
+		ID:      tl3.ID,
+		Private: false,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, tl5)
+	require.False(t, tl5.Private)
+	require.NotEmpty(t, tl5.Alias)
+	require.NotEmpty(t, tl5.URL)
+}
+
+func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepository) *user.User {
+	mockUser := &user.User{
+		Email: fmt.Sprintf("testuser%d@gmail.com", rand.Intn(100)),
+		Name:  "TestUser",
+	}
+	mockUser.Password.Set("test123")
+	require.Nil(t, userDb.Insert(ctx, mockUser))
+	return mockUser
+}
 
 // func TestTinylinkService(t *testing.T) {
 // 	ctx := context.Background()

@@ -113,9 +113,6 @@ func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTin
 		ID:      req.ID,
 		UserID:  claims.UserID,
 		Private: req.Private,
-		// URL:     req.URL,
-		// Alias:   req.Alias,
-		// Domain:  &req.Domain,
 	}
 	if req.Domain != nil {
 		tl.Domain = req.Domain
@@ -136,7 +133,17 @@ func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTin
 			return ErrAliasExists
 		}
 		return dbAdapters.TinylinkDBRepository.Update(ctx, tl)
+
+		// if err := dbAdapters.TinylinkDBRepository.Update(ctx, tl); err != nil {
+		// 	return err
+		// }
+		// tl, err = dbAdapters.TinylinkDBRepository.GetByUserID(ctx, tl.UserID, tl.Alias)
+		// if err != nil {
+		// 	return err
+		// }
+		// return nil
 	})
+
 	if err != nil {
 		return nil, err
 	}

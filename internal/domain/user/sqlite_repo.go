@@ -14,12 +14,9 @@ type SQLiteUserRepository struct {
 	db db
 }
 
-type userDB struct {
-}
-
-func fromDomain(user *User) userDB {
-	return userDB{}
-}
+// func fromDomain(user *User) userDB {
+// 	return userDB{}
+// }
 
 func (r *SQLiteUserRepository) Exists(ctx context.Context, email string, checkGoogle bool) (bool, error) {
 	var query string

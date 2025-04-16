@@ -86,7 +86,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 	err := s.provider.WithTransaction(func(adapters Adapters) error {
 		existingUser, err := adapters.UserDbRepository.GetByEmail(ctx, req.Email)
 		if err != nil {
-			if errors.Is(err, data.ErrNotFound) {
+			if errors.Is(err, data.ErrNotFound) && userData.HasPassword() {
 				return adapters.UserDbRepository.Insert(ctx, userData)
 			}
 			return err

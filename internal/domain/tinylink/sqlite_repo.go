@@ -3,6 +3,7 @@ package tinylink
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -15,8 +16,8 @@ type TinylinkSQLRepository struct {
 
 type TinylinkDb struct {
 	ID          uint64         `db:"id"`
-	Alias       string         `db:"alias"`
-	URL         string         `db:"original_url"`
+	Alias       sql.NullString `db:"alias"`
+	URL         sql.NullString `db:"original_url"`
 	UserID      sql.NullInt64  `db:"user_id"`
 	Private     bool           `db:"is_private"`
 	UsageCount  uint64         `db:"usage_count"`
@@ -28,6 +29,8 @@ type TinylinkDb struct {
 }
 
 func fromDomain(tl *Tinylink) *TinylinkDb {
+	fmt.Println("CONVERTING: ", tl)
+
 	var userID sql.NullInt64
 	if tl.UserID != "" {
 		if parsedID, err := strconv.ParseInt(tl.UserID, 10, 64); err == nil {
@@ -40,10 +43,18 @@ func fromDomain(tl *Tinylink) *TinylinkDb {
 	if tl.Domain != nil {
 		domain = sql.NullString{String: *tl.Domain, Valid: true}
 	}
+	var URL sql.NullString
+	if tl.URL != "" {
+		URL = sql.NullString{String: tl.URL, Valid: true}
+	}
+	var alias sql.NullString
+	if tl.Alias != "" {
+		alias = sql.NullString{String: tl.Alias, Valid: true}
+	}
 	return &TinylinkDb{
 		ID:          tl.ID,
-		Alias:       tl.Alias,
-		URL:         tl.URL,
+		Alias:       alias,
+		URL:         URL,
 		UserID:      userID,
 		Private:     tl.Private,
 		UsageCount:  tl.UsageCount,
@@ -66,19 +77,56 @@ func isUniqueConstraintErr(err error) bool {
 
 func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error {
 	record := fromDomain(tl)
+	fmt.Println("RECORD: ", record)
 
-	query := `UPDATE tinylinks SET alias = ?, domain = ?, is_private = ?, original_url = ?, version = version + 1, expires_at = ? 
-	WHERE id = ? AND user_id = ?
-	RETURNING version`
+	query := `
+		UPDATE tinylinks 
+		SET 
+			alias = CASE WHEN ? IS NOT NULL THEN ? ELSE alias END,
+			domain = CASE WHEN ? IS NOT NULL THEN ? ELSE domain END,
+			is_private = ?, 
+			original_url = CASE WHEN ? IS NOT NULL THEN ? ELSE original_url END,
+			version = version + 1,
+			expires_at = CASE WHEN ? != 0 THEN ? ELSE expires_at END
+		WHERE id = ? AND user_id = ?
+		RETURNING version, alias, domain, is_private, original_url, expires_at`
 
-	args := []interface{}{record.Alias, record.Domain, record.Private, record.URL, record.ExpiresAt, record.ID, record.UserID}
-	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.Version)
+	args := []interface{}{
+		record.Alias, record.Alias,
+		record.Domain, record.Domain,
+		record.Private,
+		record.URL, record.URL,
+		record.ExpiresAt, record.ExpiresAt,
+		record.ID, record.UserID,
+	}
+
+	var (
+		alias     sql.NullString
+		url       sql.NullString
+		domain    sql.NullString
+		expiresAt sql.NullInt64
+	)
+
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.Version, &alias, &domain, &tl.Private, &url, &expiresAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return data.ErrNotFound
 		}
 		return err
+	}
+
+	if alias.Valid {
+		tl.Alias = alias.String
+	}
+	if domain.Valid {
+		tl.Domain = &domain.String
+	}
+	if url.Valid {
+		tl.URL = url.String
+	}
+	if expiresAt.Valid {
+		tl.ExpiresAt = expiresAt.Int64
 	}
 
 	return nil
@@ -168,6 +216,37 @@ func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID string, alias
 	return true, nil
 }
 
+func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error) {
+	query := `
+		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited
+		FROM tinylinks
+		WHERE alias = ? AND user_id = ?
+	`
+
+	tl := &Tinylink{}
+
+	if err := s.db.QueryRowContext(ctx, query, alias, userID).Scan(
+		&tl.ID,
+		&tl.Alias,
+		&tl.URL,
+		&tl.UserID,
+		&tl.Private,
+		&tl.UsageCount,
+		&tl.Domain,
+		&tl.Version,
+		&tl.CreatedAt,
+		&tl.ExpiresAt,
+		&tl.LastVisited,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, data.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return tl, nil
+}
+
 func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	query := `
 		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited
@@ -213,6 +292,7 @@ func (s *TinylinkSQLRepository) Redirect(ctx context.Context, alias string) (uin
 		}
 		return 0, "", err
 	}
+	fmt.Println("TEST: ", rowID, URL)
 	return rowID, URL, nil
 }
 

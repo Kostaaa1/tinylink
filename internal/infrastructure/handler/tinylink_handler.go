@@ -220,13 +220,24 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 
 		URL, err = h.service.RedirectPersonal(ctx, claims, alias)
 		if err != nil {
-			h.ServerErrorResponse(w, r, err)
+			switch {
+			case errors.Is(err, data.ErrNotFound):
+				h.NotFoundResponse(w, r)
+			default:
+				h.ServerErrorResponse(w, r, err)
+			}
 			return
 		}
 	} else {
 		URL, err = h.service.Redirect(ctx, alias)
+		fmt.Println("public redirect called: ", URL)
 		if err != nil {
-			h.ServerErrorResponse(w, r, err)
+			switch {
+			case errors.Is(err, data.ErrNotFound):
+				h.NotFoundResponse(w, r)
+			default:
+				h.ServerErrorResponse(w, r, err)
+			}
 			return
 		}
 	}
