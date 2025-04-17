@@ -15,22 +15,18 @@ type TinylinkSQLRepository struct {
 }
 
 type TinylinkDb struct {
-	ID          uint64         `db:"id"`
-	Alias       sql.NullString `db:"alias"`
-	URL         sql.NullString `db:"original_url"`
-	UserID      sql.NullInt64  `db:"user_id"`
-	Private     bool           `db:"is_private"`
-	UsageCount  uint64         `db:"usage_count"`
-	Domain      sql.NullString `db:"domain"`
-	Version     uint64         `db:"version"`
-	CreatedAt   int64          `db:"created_at"`
-	ExpiresAt   int64          `db:"expires_at"`
-	LastVisited int64          `db:"last_visited"`
+	ID        uint64         `db:"id"`
+	Alias     sql.NullString `db:"alias"`
+	URL       sql.NullString `db:"original_url"`
+	UserID    sql.NullInt64  `db:"user_id"`
+	Private   bool           `db:"is_private"`
+	Domain    sql.NullString `db:"domain"`
+	Version   uint64         `db:"version"`
+	CreatedAt int64          `db:"created_at"`
+	ExpiresAt int64          `db:"expires_at"`
 }
 
 func fromDomain(tl *Tinylink) *TinylinkDb {
-	fmt.Println("CONVERTING: ", tl)
-
 	var userID sql.NullInt64
 	if tl.UserID != "" {
 		if parsedID, err := strconv.ParseInt(tl.UserID, 10, 64); err == nil {
@@ -52,17 +48,15 @@ func fromDomain(tl *Tinylink) *TinylinkDb {
 		alias = sql.NullString{String: tl.Alias, Valid: true}
 	}
 	return &TinylinkDb{
-		ID:          tl.ID,
-		Alias:       alias,
-		URL:         URL,
-		UserID:      userID,
-		Private:     tl.Private,
-		UsageCount:  tl.UsageCount,
-		Domain:      domain,
-		Version:     tl.Version,
-		CreatedAt:   tl.CreatedAt,
-		ExpiresAt:   tl.ExpiresAt,
-		LastVisited: tl.LastVisited,
+		ID:        tl.ID,
+		Alias:     alias,
+		URL:       URL,
+		UserID:    userID,
+		Private:   tl.Private,
+		Domain:    domain,
+		Version:   tl.Version,
+		CreatedAt: tl.CreatedAt,
+		ExpiresAt: tl.ExpiresAt,
 	}
 }
 
@@ -77,7 +71,6 @@ func isUniqueConstraintErr(err error) bool {
 
 func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error {
 	record := fromDomain(tl)
-	fmt.Println("RECORD: ", record)
 
 	query := `
 		UPDATE tinylinks 
@@ -89,7 +82,7 @@ func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error 
 			version = version + 1,
 			expires_at = CASE WHEN ? != 0 THEN ? ELSE expires_at END
 		WHERE id = ? AND user_id = ?
-		RETURNING version, alias, domain, is_private, original_url, expires_at`
+		RETURNING version, alias, domain, is_private, original_url, expires_at, created_at`
 
 	args := []interface{}{
 		record.Alias, record.Alias,
@@ -107,7 +100,7 @@ func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error 
 		expiresAt sql.NullInt64
 	)
 
-	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.Version, &alias, &domain, &tl.Private, &url, &expiresAt)
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&tl.Version, &alias, &domain, &tl.Private, &url, &expiresAt, &tl.CreatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -149,7 +142,7 @@ func (s *TinylinkSQLRepository) Insert(ctx context.Context, tl *Tinylink) error 
 
 func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tinylink, error) {
 	query := `
-		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited 
+		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at 
 		FROM tinylinks
 		WHERE user_id = ?
 	`
@@ -170,12 +163,10 @@ func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tin
 			&tl.URL,
 			&tl.UserID,
 			&tl.Private,
-			&tl.UsageCount,
 			&tl.Domain,
 			&tl.Version,
 			&tl.CreatedAt,
 			&tl.ExpiresAt,
-			&tl.LastVisited,
 		); err != nil {
 			return nil, err
 		}
@@ -213,12 +204,13 @@ func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID string, alias
 		}
 		return false, err
 	}
+
 	return true, nil
 }
 
 func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error) {
 	query := `
-		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited
+		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at 
 		FROM tinylinks
 		WHERE alias = ? AND user_id = ?
 	`
@@ -231,12 +223,10 @@ func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias s
 		&tl.URL,
 		&tl.UserID,
 		&tl.Private,
-		&tl.UsageCount,
 		&tl.Domain,
 		&tl.Version,
 		&tl.CreatedAt,
 		&tl.ExpiresAt,
-		&tl.LastVisited,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, data.ErrNotFound
@@ -249,7 +239,7 @@ func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias s
 
 func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
 	query := `
-		SELECT id, alias, original_url, user_id, is_private, usage_count, domain, version, created_at, expires_at, last_visited
+		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at
 		FROM tinylinks
 		WHERE alias = ?
 	`
@@ -262,12 +252,10 @@ func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylin
 		&tl.URL,
 		&tl.UserID,
 		&tl.Private,
-		&tl.UsageCount,
 		&tl.Domain,
 		&tl.Version,
 		&tl.CreatedAt,
 		&tl.ExpiresAt,
-		&tl.LastVisited,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, data.ErrNotFound
@@ -313,19 +301,22 @@ func (s *TinylinkSQLRepository) RedirectPersonal(ctx context.Context, userID, al
 	return rowID, url, nil
 }
 
-func (s *TinylinkSQLRepository) UpdateUsage(ctx context.Context, rowID uint64) error {
-	query := `UPDATE tinylinks 
-	SET usage_count = usage_count + 1, last_visited = strftime('%s', 'now')
-	WHERE id = ?`
-	err := s.db.QueryRowContext(ctx, query, rowID).Err()
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return data.ErrNotFound
-		}
-		return err
-	}
-	return nil
-}
+// func (s *TinylinkSQLRepository) UpdateUsage(ctx context.Context, rowID uint64) error {
+// 	fmt.Println("UPDATING USAGE FOR ROW: ", rowID)
+// 	query := `UPDATE tinylinks
+// 	SET usage_count = usage_count + 1, last_visited = strftime('%s', 'now')
+// 	WHERE id = ?
+// 	RETURNING last_visited`
+// 	var dummy int
+// 	err := s.db.QueryRowContext(ctx, query, rowID).Scan(&dummy)
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			return data.ErrNotFound
+// 		}
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func (s *TinylinkSQLRepository) Delete(ctx context.Context, userID, alias string) error {
 	query := `DELETE FROM tinylinks WHERE user_id = ? AND alias = ?`

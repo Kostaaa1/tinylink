@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
@@ -60,10 +61,19 @@ func setupRedisDB(t *testing.T) *redis.Client {
 	return redisClient
 }
 
-func TestTinylinkRepository_Update(t *testing.T) {
+func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepository) *user.User {
+	mockUser := &user.User{
+		Email: fmt.Sprintf("testuser%d@gmail.com", rand.Intn(100)),
+		Name:  "TestUser",
+	}
+	mockUser.Password.Set("test123")
+	require.Nil(t, userDb.Insert(ctx, mockUser))
+	return mockUser
+}
+
+func TestTinylinkRepository_Insert(t *testing.T) {
 	db := setupTestDB(t)
 	redis := setupRedisDB(t)
-
 	provider := tinylink.NewRepositoryProvider(db, redis)
 	tlService := tinylink.NewService(provider)
 
@@ -111,26 +121,52 @@ func TestTinylinkRepository_Update(t *testing.T) {
 	require.Equal(t, err, tinylink.ErrAliasExists)
 	require.Nil(t, tl4)
 
-	tl5, err := tlService.Update(ctx, claims, tinylink.UpdateTinylinkRequest{
-		ID:      tl3.ID,
-		Private: false,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, tl5)
-	require.False(t, tl5.Private)
-	require.NotEmpty(t, tl5.Alias)
-	require.NotEmpty(t, tl5.URL)
+	// tl5, err := tlService.Update(ctx, claims, tinylink.UpdateTinylinkRequest{
+	// 	ID:      tl3.ID,
+	// 	Private: false,
+	// })
+	// require.NoError(t, err)
+	// require.NotNil(t, tl5)
+	// require.False(t, tl5.Private)
+	// require.NotEmpty(t, tl5.Alias)
+	// require.NotEmpty(t, tl5.URL)
 }
 
-func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepository) *user.User {
-	mockUser := &user.User{
-		Email: fmt.Sprintf("testuser%d@gmail.com", rand.Intn(100)),
-		Name:  "TestUser",
-	}
-	mockUser.Password.Set("test123")
-	require.Nil(t, userDb.Insert(ctx, mockUser))
-	return mockUser
+func TestTinylinkRepository_Update(t *testing.T) {
+	db := setupTestDB(t)
+	redis := setupRedisDB(t)
+	provider := tinylink.NewRepositoryProvider(db, redis)
+	tlService := tinylink.NewService(provider)
+
+	ctx := context.Background()
+
+	userProvider := user.NewRepositoryProvider(db)
+	userDb := userProvider.GetAdapters().UserDbRepository
+	user1 := createMockUser(t, ctx, userDb)
+	user2 := createMockUser(t, ctx, userDb)
+
+	mockUrl := "https://medium.com/nerd-for-tech/redis-getting-notified-when-a-key-is-expired-or-changed-ca3e1f1c7f0a"
+	mockAlias := "extra"
+
+	tl, err := tlService.Insert(ctx, token.Claims{UserID: user1.GetID()}, tinylink.InsertTinylinkRequest{
+		URL:     mockUrl,
+		Alias:   mockAlias,
+		Private: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, tl)
+
+	tl2, err := tlService.Update(ctx, token.Claims{UserID: user2.GetID()}, tinylink.UpdateTinylinkRequest{
+		URL:     &mockUrl,
+		Alias:   &mockAlias,
+		Private: false,
+	})
+	require.Error(t, err)
+	require.Equal(t, err, data.ErrNotFound)
+	require.Nil(t, tl2)
 }
+
+func TestTinylinkRepository_Delete(t *testing.T) {}
 
 // func TestTinylinkService(t *testing.T) {
 // 	ctx := context.Background()

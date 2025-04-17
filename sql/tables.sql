@@ -26,7 +26,6 @@ CREATE TABLE IF NOT EXISTS tinylinks (
     original_url TEXT NOT NULL,
     user_id INTEGER NOT NULL,
     is_private INTEGER NOT NULL DEFAULT 0,
-    usage_count INTEGER NOT NULL DEFAULT 0,
     domain TEXT,
     version INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), 
@@ -36,16 +35,17 @@ CREATE TABLE IF NOT EXISTS tinylinks (
 );
 
 CREATE TABLE IF NOT EXISTS visit_log (
-    id INTEGER,
+    tinylink_id INTEGER,
     timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    usage_count INTEGER,
     ip_address TEXT,
     user_agent TEXT,
     referrer TEXT,
-    city TEXT,
-    country TEXT,
+    geo_city TEXT,
+    geo_country TEXT,
     browser TEXT,
     os TEXT,
-    FOREIGN KEY (id) REFERENCES tinylinks (id) ON DELETE CASCADE
+    FOREIGN KEY (tinylink_id) REFERENCES tinylinks (id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email COLLATE NOCASE);
@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_tinylinks_is_private ON tinylinks(is_private);
 CREATE INDEX IF NOT EXISTS idx_tinylinks_last_visited ON tinylinks(last_visited);
 
 CREATE INDEX IF NOT EXISTS idx_visit_log_timestamp ON visit_log(timestamp);
-CREATE INDEX IF NOT EXISTS idx_visit_log_country ON visit_log(country);
+CREATE INDEX IF NOT EXISTS idx_visit_log_geo_country ON visit_log(geo_country);
 CREATE INDEX IF NOT EXISTS idx_visit_log_referrer ON visit_log(referrer);
 CREATE INDEX IF NOT EXISTS idx_visit_log_browser ON visit_log(browser);
 CREATE INDEX IF NOT EXISTS idx_visit_log_os ON visit_log(os);

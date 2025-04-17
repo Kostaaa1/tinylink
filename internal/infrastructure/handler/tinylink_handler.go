@@ -25,17 +25,15 @@ type TinylinkHandler struct {
 }
 
 type TinylinkDTO struct {
-	ID          uint64     `json:"-"`
-	Alias       string     `json:"alias"`
-	URL         string     `json:"original_url"`
-	UserID      uint64     `json:"user_id,omitempty"`
-	Private     bool       `json:"private"`
-	UsageCount  uint64     `json:"usage_count"`
-	Domain      string     `json:"domain,omitempty"`
-	Version     uint64     `json:"version"`
-	CreatedAt   time.Time  `json:"created_at"`
-	LastVisited *time.Time `json:"last_visited"`
-	ExpiresAt   *time.Time `json:"expires_at"`
+	ID        uint64     `json:"-"`
+	Alias     string     `json:"alias"`
+	URL       string     `json:"original_url"`
+	UserID    uint64     `json:"user_id,omitempty"`
+	Private   bool       `json:"private"`
+	Domain    string     `json:"domain,omitempty"`
+	Version   uint64     `json:"version"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
 func toDTOList(links []*tinylink.Tinylink) []TinylinkDTO {
@@ -57,12 +55,6 @@ func toDTO(tl *tinylink.Tinylink) TinylinkDTO {
 		domain = *tl.Domain
 	}
 
-	var lastVisited *time.Time
-	if tl.LastVisited > 0 {
-		t := time.Unix(tl.LastVisited, 0)
-		lastVisited = &t
-	}
-
 	var expiresAt *time.Time
 	if tl.ExpiresAt > 0 {
 		t := time.Unix(tl.ExpiresAt, 0)
@@ -70,17 +62,15 @@ func toDTO(tl *tinylink.Tinylink) TinylinkDTO {
 	}
 
 	return TinylinkDTO{
-		ID:          tl.ID,
-		Alias:       tl.Alias,
-		URL:         tl.URL,
-		UserID:      userID,
-		Private:     tl.Private,
-		UsageCount:  tl.UsageCount,
-		Domain:      domain,
-		Version:     tl.Version,
-		CreatedAt:   time.Unix(tl.CreatedAt, 0),
-		LastVisited: lastVisited,
-		ExpiresAt:   expiresAt,
+		ID:        tl.ID,
+		Alias:     tl.Alias,
+		URL:       tl.URL,
+		UserID:    userID,
+		Private:   tl.Private,
+		Domain:    domain,
+		Version:   tl.Version,
+		CreatedAt: time.Unix(tl.CreatedAt, 0),
+		ExpiresAt: expiresAt,
 	}
 }
 
@@ -218,7 +208,7 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		URL, err = h.service.RedirectPersonal(ctx, claims, alias)
+		_, URL, err = h.service.RedirectPersonal(ctx, claims, alias)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrNotFound):
@@ -229,8 +219,7 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		URL, err = h.service.Redirect(ctx, alias)
-		fmt.Println("public redirect called: ", URL)
+		_, URL, err = h.service.Redirect(ctx, alias)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrNotFound):

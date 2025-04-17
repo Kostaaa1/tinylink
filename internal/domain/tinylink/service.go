@@ -110,7 +110,6 @@ func (s *Service) Insert(ctx context.Context, claims token.Claims, req InsertTin
 
 func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
-		ID:      req.ID,
 		UserID:  claims.UserID,
 		Private: req.Private,
 	}
@@ -125,23 +124,14 @@ func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTin
 	}
 
 	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-		fetched, err := dbAdapters.TinylinkDBRepository.Get(ctx, tl.Alias)
+		fetched, err := dbAdapters.TinylinkDBRepository.GetByUserID(ctx, claims.UserID, tl.Alias)
 		if err != nil && err != data.ErrNotFound {
 			return err
 		}
-		if fetched != nil && fetched.ID != tl.ID {
-			return ErrAliasExists
+		if fetched != nil {
+			return err
 		}
 		return dbAdapters.TinylinkDBRepository.Update(ctx, tl)
-
-		// if err := dbAdapters.TinylinkDBRepository.Update(ctx, tl); err != nil {
-		// 	return err
-		// }
-		// tl, err = dbAdapters.TinylinkDBRepository.GetByUserID(ctx, tl.UserID, tl.Alias)
-		// if err != nil {
-		// 	return err
-		// }
-		// return nil
 	})
 
 	if err != nil {
@@ -152,82 +142,43 @@ func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTin
 }
 
 // Cache?????
-func (s *Service) RedirectPersonal(ctx context.Context, claims token.Claims, alias string) (string, error) {
-	var URL string
-	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-		rowID, url, err := dbAdapters.TinylinkDBRepository.RedirectPersonal(ctx, claims.UserID, alias)
-		if err != nil {
-			return err
-		}
-		URL = url
-		return dbAdapters.TinylinkDBRepository.UpdateUsage(ctx, rowID)
-	})
+func (s *Service) RedirectPersonal(ctx context.Context, claims token.Claims, alias string) (uint64, string, error) {
+	rowID, url, err := s.db.RedirectPersonal(ctx, claims.UserID, alias)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
-	return URL, nil
+	return rowID, url, nil
 }
 
-func (s *Service) Redirect(ctx context.Context, alias string) (string, error) {
+func (s *Service) Redirect(ctx context.Context, alias string) (uint64, string, error) {
 	var rowID uint64
 	var url string
 	var err error
 
+	rowID, url, err = s.redis.Redirect(ctx, alias)
+	if err != nil && !errors.Is(err, data.ErrNotFound) {
+		return 0, "", err
+	}
+
 	err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-		rowID, url, err = s.redis.Redirect(ctx, alias)
-		if err != nil && !errors.Is(err, data.ErrNotFound) {
-			return err
-		}
 		if url == "" {
 			if rowID, url, err = dbAdapters.TinylinkDBRepository.Redirect(ctx, alias); err != nil {
 				return err
 			}
-			return s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, URL: url, ExpiresAt: int64(cacheTTL)})
+			ttl := time.Now().Add(cacheTTL).Unix()
+			if err := s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, URL: url, ExpiresAt: ttl}); err != nil {
+				return err
+			}
 		}
-
-		if url == "" {
-			return data.ErrNotFound
-		}
-
-		if err := dbAdapters.TinylinkDBRepository.UpdateUsage(ctx, rowID); err != nil {
-			return err
-		}
-		return nil
+		return data.ErrNotFound
 	})
 
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 
-	return url, nil
+	return rowID, url, nil
 }
-
-// func (s *Service) Get(ctx context.Context, alias string) (*Tinylink, error) {
-// 	var tl *Tinylink
-// 	var err error
-// 	err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-// 		tl, err = s.tinylinkRedis.Get(ctx, alias)
-// 		if err != nil && !errors.Is(err, data.ErrNotFound) {
-// 			return err
-// 		}
-// 		if tl == nil {
-// 			if tl, err = dbAdapters.TinylinkDBRepository.Get(ctx, alias); err != nil {
-// 				return err
-// 			}
-// 			if err := s.tinylinkRedis.Insert(ctx, tl); err != nil {
-// 				return err
-// 			}
-// 		}
-// 		if err := dbAdapters.TinylinkDBRepository.UpdateUsage(ctx, tl); err != nil {
-// 			return err
-// 		}
-// 		return nil
-// 	})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return tl, nil
-// }
 
 func (s *Service) Delete(ctx context.Context, claims token.Claims, alias string) error {
 	return s.db.Delete(ctx, claims.UserID, alias)

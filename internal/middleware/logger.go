@@ -48,6 +48,6 @@ func (mw MW) Logger(next http.Handler) http.Handler {
 			slog.Error(msg, attrs...)
 			return
 		}
-		slog.Debug(msg, attrs...)
+		slog.Info(msg, attrs...)
 	})
 }

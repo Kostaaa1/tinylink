@@ -69,6 +69,7 @@ func (r *TinylinkRedisRepository) Insert(ctx context.Context, tl *Tinylink) erro
 	})
 
 	ttl := tl.ExpiresAt - time.Now().Unix()
+	fmt.Println("SEtting ttl: ", ttl)
 	if ttl > 0 {
 		pipe.Expire(ctx, key, time.Duration(ttl)*time.Second)
 	}
