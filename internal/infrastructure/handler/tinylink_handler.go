@@ -158,7 +158,8 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req tinylink.InsertTinylinkRequest
-	if err := readJSON(r, &req); err != nil {
+	err := readJSON(r, &req)
+	if err != nil {
 		h.BadRequestResponse(w, r, err)
 		return
 	}
@@ -171,9 +172,14 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
+
 	claims, _ := token.ClaimsFromRequest(r)
 
-	tl, err := h.service.Insert(ctx, claims, req)
+	// req.SessionID, err = token.GetSessionUUID(r)
+	// if err != nil {
+	// }
+
+	tl, err := h.service.Create(ctx, claims, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, tinylink.ErrURLExists):
@@ -199,39 +205,28 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	alias := mux.Vars(r)["alias"]
 
 	var err error
-	var URL string
+	var url string
 
-	if strings.HasPrefix(r.URL.Path, "/p/") {
-		claims := authcontext.ClaimsFromCtx(ctx)
-		if claims.UserID == "" {
-			h.UnauthorizedResponse(w, r)
-			return
-		}
+	isPrivateRoute := strings.HasPrefix(r.URL.Path, "/p/")
+	claims := authcontext.ClaimsFromCtx(ctx)
 
-		_, URL, err = h.service.RedirectPersonal(ctx, claims, alias)
-		if err != nil {
-			switch {
-			case errors.Is(err, data.ErrNotFound):
-				h.NotFoundResponse(w, r)
-			default:
-				h.ServerErrorResponse(w, r, err)
-			}
-			return
-		}
-	} else {
-		_, URL, err = h.service.Redirect(ctx, alias)
-		if err != nil {
-			switch {
-			case errors.Is(err, data.ErrNotFound):
-				h.NotFoundResponse(w, r)
-			default:
-				h.ServerErrorResponse(w, r, err)
-			}
-			return
-		}
+	if claims.UserID == "" && isPrivateRoute {
+		h.UnauthorizedResponse(w, r)
+		return
 	}
 
-	w.Header().Set("Location", URL)
+	_, url, err = h.service.Redirect(ctx, &claims.UserID, alias, isPrivateRoute)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrNotFound):
+			h.NotFoundResponse(w, r)
+		default:
+			h.ServerErrorResponse(w, r, err)
+		}
+		return
+	}
+
+	w.Header().Set("Location", url)
 	w.WriteHeader(http.StatusFound)
 }
 

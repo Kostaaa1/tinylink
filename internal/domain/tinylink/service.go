@@ -24,7 +24,7 @@ type Adapters struct {
 
 type provider interface {
 	WithTransaction(txFunc func(dbAdapters DBAdapters) error) error
-	GetAdapters() Adapters
+	Adapters() Adapters
 }
 
 type Service struct {
@@ -34,7 +34,7 @@ type Service struct {
 }
 
 func NewService(provider provider) *Service {
-	adapters := provider.GetAdapters()
+	adapters := provider.Adapters()
 	return &Service{
 		provider: provider,
 		db:       adapters.TinylinkDBRepository,
@@ -43,10 +43,10 @@ func NewService(provider provider) *Service {
 }
 
 func (s *Service) List(ctx context.Context, claims token.Claims) ([]*Tinylink, error) {
-	return s.db.List(ctx, claims.UserID)
+	return s.db.ListUserLinks(ctx, claims.UserID)
 }
 
-func (s *Service) checkAlias(ctx context.Context, userID string, alias string, isPrivate bool) error {
+func (s *Service) isAliasValid(ctx context.Context, userID string, alias string, isPrivate bool) error {
 	if !isPrivate {
 		exists, err := s.redis.Exists(ctx, alias)
 		if err != nil && err != data.ErrNotFound {
@@ -64,15 +64,17 @@ func (s *Service) checkAlias(ctx context.Context, userID string, alias string, i
 	if exists {
 		return ErrAliasExists
 	}
+
 	return nil
 }
 
-func (s *Service) Insert(ctx context.Context, claims token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Create(ctx context.Context, claims token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
-		URL:     req.URL,
-		Alias:   req.Alias,
-		Domain:  &req.Domain,
-		Private: req.Private,
+		URL:       req.URL,
+		Alias:     req.Alias,
+		Domain:    &req.Domain,
+		Private:   req.Private,
+		CreatedAt: time.Now().Unix(),
 	}
 
 	hasUserID := claims.UserID != ""
@@ -80,7 +82,6 @@ func (s *Service) Insert(ctx context.Context, claims token.Claims, req InsertTin
 		tl.UserID = claims.UserID
 	} else {
 		tl.Private = false
-		tl.ExpiresAt = time.Now().Add(time.Duration(anonTTL)).Unix()
 	}
 
 	if tl.Alias == "" {
@@ -90,17 +91,17 @@ func (s *Service) Insert(ctx context.Context, claims token.Claims, req InsertTin
 		}
 		tl.Alias = alias
 	} else {
-		if err := s.checkAlias(ctx, tl.UserID, tl.Alias, tl.Private); err != nil {
+		if err := s.isAliasValid(ctx, tl.UserID, tl.Alias, tl.Private); err != nil {
 			return nil, err
 		}
 	}
 
 	if hasUserID {
-		if err := s.db.Insert(ctx, tl); err != nil {
+		if err := s.db.Create(ctx, tl); err != nil {
 			return nil, err
 		}
 	} else {
-		if err := s.redis.Insert(ctx, tl); err != nil {
+		if err := s.redis.StoreBySessionID(ctx, req.SessionID, ToMapInterface(tl)); err != nil {
 			return nil, err
 		}
 	}
@@ -123,17 +124,8 @@ func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTin
 		tl.URL = *req.URL
 	}
 
-	err := s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-		fetched, err := dbAdapters.TinylinkDBRepository.GetByUserID(ctx, claims.UserID, tl.Alias)
-		if err != nil && err != data.ErrNotFound {
-			return err
-		}
-		if fetched != nil {
-			return err
-		}
-		return dbAdapters.TinylinkDBRepository.Update(ctx, tl)
-	})
-
+	// If not found, maybe check redis?
+	err := s.provider.Adapters().TinylinkDBRepository.Update(ctx, tl)
 	if err != nil {
 		return nil, err
 	}
@@ -141,37 +133,41 @@ func (s *Service) Update(ctx context.Context, claims token.Claims, req UpdateTin
 	return tl, nil
 }
 
-// Cache?????
-func (s *Service) RedirectPersonal(ctx context.Context, claims token.Claims, alias string) (uint64, string, error) {
-	rowID, url, err := s.db.RedirectPersonal(ctx, claims.UserID, alias)
-	if err != nil {
-		return 0, "", err
-	}
-	return rowID, url, nil
-}
-
-func (s *Service) Redirect(ctx context.Context, alias string) (uint64, string, error) {
+func (s *Service) Redirect(ctx context.Context, userID *string, alias string, isPrivate bool) (uint64, string, error) {
 	var rowID uint64
 	var url string
 	var err error
 
-	rowID, url, err = s.redis.Redirect(ctx, alias)
+	// check cache first, if found return
+	rowID, url, err = s.redis.GetURL(ctx, alias)
 	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return 0, "", err
 	}
 
-	err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-		if url == "" {
-			if rowID, url, err = dbAdapters.TinylinkDBRepository.Redirect(ctx, alias); err != nil {
-				return err
+	if url == "" {
+		err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
+			// based on route (/p/ or public), GET the URL by alias/alias-user-id.
+			if isPrivate && *userID != "" {
+				if rowID, url, err = dbAdapters.TinylinkDBRepository.GetPersonalURL(ctx, *userID, alias); err != nil {
+					return err
+				}
+			} else {
+				if rowID, url, err = dbAdapters.TinylinkDBRepository.GetURL(ctx, alias); err != nil {
+					return err
+				}
 			}
-			ttl := time.Now().Add(cacheTTL).Unix()
-			if err := s.redis.Insert(ctx, &Tinylink{ID: rowID, Alias: alias, URL: url, ExpiresAt: ttl}); err != nil {
-				return err
+
+			// If found, insert it into redis cache for faster lookups
+			if url != "" {
+				if err := s.redis.CacheURL(ctx, rowID, alias, url); err != nil {
+					return err
+				}
+				return nil
 			}
-		}
-		return data.ErrNotFound
-	})
+
+			return data.ErrNotFound
+		})
+	}
 
 	if err != nil {
 		return 0, "", err

@@ -3,7 +3,6 @@ package tinylink
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strconv"
 
 	"github.com/Kostaaa1/tinylink/internal/common/data"
@@ -125,7 +124,7 @@ func (s *TinylinkSQLRepository) Update(ctx context.Context, tl *Tinylink) error 
 	return nil
 }
 
-func (s *TinylinkSQLRepository) Insert(ctx context.Context, tl *Tinylink) error {
+func (s *TinylinkSQLRepository) Create(ctx context.Context, tl *Tinylink) error {
 	record := fromDomain(tl)
 	query := `INSERT INTO tinylinks (user_id, alias, original_url, domain, is_private) 
 		VALUES (?, ?, ?, ?, ?)
@@ -140,7 +139,7 @@ func (s *TinylinkSQLRepository) Insert(ctx context.Context, tl *Tinylink) error 
 	return nil
 }
 
-func (s *TinylinkSQLRepository) List(ctx context.Context, userID string) ([]*Tinylink, error) {
+func (s *TinylinkSQLRepository) ListUserLinks(ctx context.Context, userID string) ([]*Tinylink, error) {
 	query := `
 		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at 
 		FROM tinylinks
@@ -266,7 +265,7 @@ func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylin
 	return tl, nil
 }
 
-func (s *TinylinkSQLRepository) Redirect(ctx context.Context, alias string) (uint64, string, error) {
+func (s *TinylinkSQLRepository) GetURL(ctx context.Context, alias string) (uint64, string, error) {
 	query := `
 		SELECT id, original_url
 		FROM tinylinks
@@ -280,11 +279,10 @@ func (s *TinylinkSQLRepository) Redirect(ctx context.Context, alias string) (uin
 		}
 		return 0, "", err
 	}
-	fmt.Println("TEST: ", rowID, URL)
 	return rowID, URL, nil
 }
 
-func (s *TinylinkSQLRepository) RedirectPersonal(ctx context.Context, userID, alias string) (uint64, string, error) {
+func (s *TinylinkSQLRepository) GetPersonalURL(ctx context.Context, userID, alias string) (uint64, string, error) {
 	query := `
 		SELECT id, original_url
 		FROM tinylinks

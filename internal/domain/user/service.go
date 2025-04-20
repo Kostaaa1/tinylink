@@ -17,7 +17,7 @@ type Adapters struct {
 
 type provider interface {
 	WithTransaction(txFunc func(adapters Adapters) error) error
-	GetAdapters() Adapters
+	Adapters() Adapters
 }
 
 type Service struct {
@@ -27,7 +27,7 @@ type Service struct {
 }
 
 func NewService(provider provider, tokenRepo token.Repository) *Service {
-	adapters := provider.GetAdapters()
+	adapters := provider.Adapters()
 	return &Service{
 		provider:  provider,
 		userDb:    adapters.UserDbRepository,

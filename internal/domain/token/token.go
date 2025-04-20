@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	sessionKey = "tinylink_session"
-	jwtSecret  = []byte(os.Getenv("JWT_SECRET_KEY"))
-
-	accessTokenDuration  = 15 * time.Minute
-	refreshTokenDuration = 7 * 24 * time.Hour
-
+	SessionTTL             = 365 * 24 * time.Hour
+	sessionKey             = "tinylink_session"
+	refreshTokenKey        = "refresh_token"
+	jwtSecret              = []byte(os.Getenv("JWT_SECRET_KEY"))
+	accessTokenDuration    = 15 * time.Minute
+	refreshTokenDuration   = 7 * 24 * time.Hour
 	ErrAccessTokenExpired  = errors.New("access token expired")
 	ErrRefreshTokenExpired = errors.New("refresh token expired")
 	ErrTokenNotValid       = errors.New("token user id does not match provided user id")
@@ -26,7 +26,7 @@ var (
 
 type Claims struct {
 	UserID string
-	JTI    string // blacklisting
+	JTI    string // uuid for blacklisting
 	jwt.RegisteredClaims
 }
 
@@ -44,7 +44,7 @@ func GenerateRefreshToken() string {
 func SetHeaderAndCookie(w http.ResponseWriter, r *http.Request, refreshToken, accessToken string) {
 	w.Header().Set("Authorization", "Bearer "+accessToken)
 	http.SetCookie(w, &http.Cookie{
-		Name:     sessionKey,
+		Name:     refreshTokenKey,
 		Value:    refreshToken,
 		Secure:   false,
 		HttpOnly: true,
@@ -54,17 +54,25 @@ func SetHeaderAndCookie(w http.ResponseWriter, r *http.Request, refreshToken, ac
 	})
 }
 
-func ClearCookie(w http.ResponseWriter) {
+func ClearRefreshToken(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:   sessionKey,
+		Name:   refreshTokenKey,
 		Value:  "",
 		MaxAge: -1,
 		Path:   "/",
 	})
 }
 
-func GetRefreshToken(r *http.Request) (string, error) {
+func GetSessionUUID(r *http.Request) (string, error) {
 	token, err := r.Cookie(sessionKey)
+	if err != nil {
+		return "", err
+	}
+	return token.Value, nil
+}
+
+func GetRefreshToken(r *http.Request) (string, error) {
+	token, err := r.Cookie(refreshTokenKey)
 	if err != nil {
 		return "", err
 	}

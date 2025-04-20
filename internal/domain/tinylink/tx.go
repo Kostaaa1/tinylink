@@ -19,7 +19,7 @@ func NewRepositoryProvider(db *sql.DB, client *redis.Client) *RepositoryProvider
 	}
 }
 
-func (p *RepositoryProvider) GetAdapters() Adapters {
+func (p *RepositoryProvider) Adapters() Adapters {
 	return Adapters{
 		DBAdapters: DBAdapters{
 			TinylinkDBRepository: &TinylinkSQLRepository{db: p.db},

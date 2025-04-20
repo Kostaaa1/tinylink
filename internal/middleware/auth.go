@@ -53,7 +53,7 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 				case errors.Is(err, token.ErrTokenNotValid):
 					mw.ForbiddenResponse(w, r)
 				case errors.Is(err, data.ErrNotFound):
-					token.ClearCookie(w)
+					token.ClearRefreshToken(w)
 					mw.UnauthorizedResponse(w, r)
 				default:
 					mw.UnauthorizedResponse(w, r)

@@ -9,7 +9,6 @@ import (
 )
 
 var (
-	anonTTL  = 30 * 24 * time.Hour
 	cacheTTL = 6 * time.Hour
 
 	ErrAliasExists = errors.New("this alias is not available. All aliasses must be unique")
@@ -29,10 +28,24 @@ type Tinylink struct {
 }
 
 type InsertTinylinkRequest struct {
-	URL     string `json:"url"`
-	Alias   string `json:"alias"`
-	Domain  string `json:"domain"`
-	Private bool   `json:"private"`
+	URL       string `json:"url"`
+	Alias     string `json:"alias"`
+	Domain    string `json:"domain"`
+	Private   bool   `json:"private"`
+	SessionID string
+}
+
+func ToMapInterface(tl *Tinylink) map[string]interface{} {
+	return map[string]interface{}{
+		"id":         tl.ID,
+		"url":        tl.URL,
+		"alias":      tl.Alias,
+		"private":    tl.Private,
+		"domain":     tl.Domain,
+		"version":    tl.Version,
+		"expires_at": tl.ExpiresAt,
+		"created_at": tl.CreatedAt,
+	}
 }
 
 func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {

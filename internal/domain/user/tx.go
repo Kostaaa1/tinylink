@@ -22,7 +22,7 @@ func (tp *RepositoryProvider) WithTransaction(txFunc func(adapters Adapters) err
 	})
 }
 
-func (tp *RepositoryProvider) GetAdapters() Adapters {
+func (tp *RepositoryProvider) Adapters() Adapters {
 	return Adapters{
 		UserDbRepository: &SQLiteUserRepository{db: tp.db},
 	}

@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS tinylinks (
 );
 
 CREATE TABLE IF NOT EXISTS visit_log (
-    tinylink_id INTEGER,
+    tinylink_id INTEGER NOT NULL,
     timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    usage_count INTEGER,
+    usage_count INTEGER NOT NULL DEFAULT 0,
     ip_address TEXT,
     user_agent TEXT,
     referrer TEXT,

@@ -4,3 +4,5 @@ NOTES.md
 *.pem
 private.pem
 public.pem
+tinylink.db-shm
+tinylink.db-wal

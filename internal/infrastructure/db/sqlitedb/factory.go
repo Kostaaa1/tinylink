@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/config"
@@ -40,21 +43,26 @@ func StartDB(conf config.SQLConfig) (*sql.DB, error) {
 		return nil, err
 	}
 
+	_, filaPath, _, _ := runtime.Caller(0)
+	basePath := filepath.Join(filepath.Dir(filaPath), "../../../../sql/tables.sql")
+	tablesSql, err := os.ReadFile(basePath)
+	if err != nil {
+		return nil, err
+	}
+	db.Exec(string(tablesSql))
+
 	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
 		return nil, err
 	}
 
-	// Enable Write-Ahead Logging ?
-	// if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
-	// 	log.Fatal("Failed to enable foreign keys:", err)
-	// }
-	// _, b, _, _ := runtime.Caller(0)
-	// basePath := filepath.Join(filepath.Dir(b), "../../../../sql/tables.sql")
-	// tablesSql, err := os.ReadFile(basePath)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// db.Exec(string(tablesSql))
+	if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
 
 	return db, nil
 }
+
+// Enable Write-Ahead Logging ?
+// if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+// 	log.Fatal("Failed to enable foreign keys:", err)
+// }

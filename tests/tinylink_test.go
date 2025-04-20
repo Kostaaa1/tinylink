@@ -71,6 +71,32 @@ func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepositor
 	return mockUser
 }
 
+func TestTinylinkRepository_Redirect(t *testing.T) {
+	db := setupTestDB(t)
+	redis := setupRedisDB(t)
+	provider := tinylink.NewRepositoryProvider(db, redis)
+	tlService := tinylink.NewService(provider)
+
+	ctx := context.Background()
+
+	mockUrl := "https://medium.com/nerd-for-tech/redis-getting-notified-when-a-key-is-expired-or-changed-ca3e1f1c7f0a"
+	alias := "extra"
+
+	tl, err := tlService.Insert(ctx, token.Claims{}, tinylink.InsertTinylinkRequest{
+		URL:   mockUrl,
+		Alias: alias,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, tl)
+	require.Greater(t, tl.CreatedAt, 0)
+	require.Equal(t, tl.Alias, alias)
+
+	// rowID, url, err := tlService.Redirect(ctx, nil, alias, false)
+	// require.NoError(t, err)
+	// require.Equal(t, tl.ID, rowID)
+	// require.Equal(t, tl.URL, url)
+}
+
 func TestTinylinkRepository_Insert(t *testing.T) {
 	db := setupTestDB(t)
 	redis := setupRedisDB(t)
@@ -80,7 +106,7 @@ func TestTinylinkRepository_Insert(t *testing.T) {
 	ctx := context.Background()
 
 	userProvider := user.NewRepositoryProvider(db)
-	userDb := userProvider.GetAdapters().UserDbRepository
+	userDb := userProvider.Adapters().UserDbRepository
 	user1 := createMockUser(t, ctx, userDb)
 
 	mockUrl := "https://medium.com/nerd-for-tech/redis-getting-notified-when-a-key-is-expired-or-changed-ca3e1f1c7f0a"
@@ -141,7 +167,7 @@ func TestTinylinkRepository_Update(t *testing.T) {
 	ctx := context.Background()
 
 	userProvider := user.NewRepositoryProvider(db)
-	userDb := userProvider.GetAdapters().UserDbRepository
+	userDb := userProvider.Adapters().UserDbRepository
 	user1 := createMockUser(t, ctx, userDb)
 	user2 := createMockUser(t, ctx, userDb)
 
@@ -174,7 +200,7 @@ func TestTinylinkRepository_Delete(t *testing.T) {}
 // 	redisClient := setupRedisDB(t)
 
 // 	userProvider := user.NewRepositoryProvider(db)
-// 	userAdapters := userProvider.GetAdapters()
+// 	userAdapters := userProvider.Adapters()
 // 	userDb := userAdapters.UserDbRepository
 
 // 	mockUser := createMockUser(t, ctx, userDb)
@@ -226,7 +252,7 @@ func TestTinylinkRepository_Delete(t *testing.T) {}
 // 	ctx := context.Background()
 
 // 	userProvider := user.NewRepositoryProvider(db)
-// 	userAdapters := userProvider.GetAdapters()
+// 	userAdapters := userProvider.Adapters()
 // 	userDb := userAdapters.UserDbRepository
 // 	newUser := &user.User{
 // 		Email: "testuser@gmail.com",
@@ -237,7 +263,7 @@ func TestTinylinkRepository_Delete(t *testing.T) {}
 // 	userID := newUser.GetID()
 
 // 	provider := tinylink.NewRepositoryProvider(db, nil)
-// 	adapters := provider.GetAdapters()
+// 	adapters := provider.Adapters()
 // 	tlDb := adapters.DBAdapters.TinylinkDBRepository
 
 // 	t.Run("Create and retrieve tinylink", func(t *testing.T) {
