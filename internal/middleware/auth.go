@@ -61,7 +61,7 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 				return
 			}
 
-			token.SetHeaderAndCookie(w, r, newRT, newAT)
+			token.SetHeaderAndCookie(w, newRT, newAT)
 			r = r.WithContext(authcontext.WithClaims(r.Context(), claims))
 
 			next.ServeHTTP(w, r)

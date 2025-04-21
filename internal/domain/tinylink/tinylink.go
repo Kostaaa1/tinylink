@@ -3,14 +3,14 @@ package tinylink
 import (
 	"errors"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/validator"
 )
 
 var (
-	cacheTTL = 6 * time.Hour
-
+	cacheTTL       = 6 * time.Hour
 	ErrAliasExists = errors.New("this alias is not available. All aliasses must be unique")
 	ErrURLExists   = errors.New("you've already created a tinylink with this URL")
 )
@@ -32,10 +32,11 @@ type InsertTinylinkRequest struct {
 	Alias     string `json:"alias"`
 	Domain    string `json:"domain"`
 	Private   bool   `json:"private"`
+	UserID    string
 	SessionID string
 }
 
-func ToMapInterface(tl *Tinylink) map[string]interface{} {
+func ToMap(tl *Tinylink) map[string]interface{} {
 	return map[string]interface{}{
 		"id":         tl.ID,
 		"url":        tl.URL,
@@ -46,6 +47,64 @@ func ToMapInterface(tl *Tinylink) map[string]interface{} {
 		"expires_at": tl.ExpiresAt,
 		"created_at": tl.CreatedAt,
 	}
+}
+
+func FromMap(data map[string]string) (*Tinylink, error) {
+	tl := &Tinylink{}
+
+	if id, ok := data["id"]; ok {
+		parsedID, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid id format")
+		}
+		tl.ID = parsedID
+	}
+
+	if url, ok := data["url"]; ok {
+		tl.URL = url
+	}
+
+	if alias, ok := data["alias"]; ok {
+		tl.Alias = alias
+	}
+
+	if private, ok := data["private"]; ok {
+		parsedPrivate, err := strconv.ParseBool(private)
+		if err != nil {
+			return nil, errors.New("invalid private format")
+		}
+		tl.Private = parsedPrivate
+	}
+
+	if domain, ok := data["domain"]; ok {
+		tl.Domain = &domain
+	}
+
+	if version, ok := data["version"]; ok {
+		parsedVersion, err := strconv.ParseUint(version, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid version format")
+		}
+		tl.Version = parsedVersion
+	}
+
+	if expiresAt, ok := data["expires_at"]; ok {
+		parsedExpiresAt, err := strconv.ParseInt(expiresAt, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid expires_at format")
+		}
+		tl.ExpiresAt = parsedExpiresAt
+	}
+
+	if createdAt, ok := data["created_at"]; ok {
+		parsedCreatedAt, err := strconv.ParseInt(createdAt, 10, 64)
+		if err != nil {
+			return nil, errors.New("invalid created_at format")
+		}
+		tl.CreatedAt = parsedCreatedAt
+	}
+
+	return tl, nil
 }
 
 func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {

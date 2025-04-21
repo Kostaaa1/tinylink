@@ -46,12 +46,51 @@ func (r *TinylinkRedisRepository) GenerateAlias(ctx context.Context) (string, er
 	return alias, nil
 }
 
-func (r *TinylinkRedisRepository) ListUserLinks(ctx context.Context, userID string) ([]*Tinylink, error) {
-	return nil, nil
+func (r *TinylinkRedisRepository) ListUserLinks(ctx context.Context, sessionID string) ([]*Tinylink, error) {
+	key := fmt.Sprintf("%s:*", sessionID)
+
+	keys, err := r.client.Keys(ctx, key).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ListUserLinks keys: %w", err)
+	}
+
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("no tinylinks found by session_id: %s", sessionID)
+	}
+
+	pipe := r.client.Pipeline()
+	cmds := make([]*redis.MapStringStringCmd, len(keys))
+	tinylinks := make([]*Tinylink, len(keys))
+
+	for i, key := range keys {
+		cmds[i] = pipe.HGetAll(ctx, key)
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, cmd := range cmds {
+		data, err := cmd.Result()
+		if err != nil {
+			return nil, err
+		}
+
+		tl, err := FromMap(data)
+		if err != nil {
+			return nil, err
+		}
+
+		tinylinks[i] = tl
+	}
+
+	return tinylinks, nil
 }
 
-func (r *TinylinkRedisRepository) Exists(ctx context.Context, alias string) (bool, error) {
-	exists, err := r.client.Exists(ctx, alias).Result()
+func (r *TinylinkRedisRepository) Exists(ctx context.Context, userID *string, alias string) (bool, error) {
+	key := fmt.Sprintf("%s:%s", *userID, alias)
+	exists, err := r.client.Exists(ctx, key).Result()
 	if err != nil {
 		return false, err
 	}
@@ -59,22 +98,28 @@ func (r *TinylinkRedisRepository) Exists(ctx context.Context, alias string) (boo
 }
 
 func (r *TinylinkRedisRepository) StoreBySessionID(ctx context.Context, sessionID string, tl map[string]interface{}) error {
+	key := fmt.Sprintf("%s:%s", sessionID, tl["alias"])
+
 	pipe := r.client.Pipeline()
 
-	if _, err := pipe.HSet(ctx, sessionID, tl).Result(); err != nil {
-		return fmt.Errorf("failed to HSET: %w", err)
+	if _, err := pipe.HSet(ctx, key, map[string]interface{}{
+		"id":         tl["id"],
+		"url":        tl["url"],
+		"alias":      tl["alias"],
+		"created_at": tl["created_at"],
+	}).Result(); err != nil {
+		return err
 	}
+	pipe.Expire(ctx, key, token.SessionTTL)
 
-	pipe.Expire(ctx, sessionID, token.SessionTTL)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		return fmt.Errorf("pipeline failed: %w", err)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// cache for fast redirects
 func (r *TinylinkRedisRepository) CacheURL(ctx context.Context, id uint64, alias, url string) error {
 	pipe := r.client.Pipeline()
 

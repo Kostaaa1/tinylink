@@ -233,7 +233,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token.SetHeaderAndCookie(w, r, refreshToken, accessToken)
+	token.SetHeaderAndCookie(w, refreshToken, accessToken)
 
 	dto := newUserDTO(loggedUser)
 	if err := writeJSON(w, http.StatusOK, envelope{"user": dto, "token": accessToken}, nil); err != nil {

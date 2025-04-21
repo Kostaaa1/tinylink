@@ -42,13 +42,19 @@ func NewService(provider provider) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context, claims token.Claims) ([]*Tinylink, error) {
-	return s.db.ListUserLinks(ctx, claims.UserID)
+func (s *Service) List(ctx context.Context, sessionID string, claims token.Claims) ([]*Tinylink, error) {
+	if claims.UserID != "" {
+		return s.db.ListUserLinks(ctx, claims.UserID)
+	}
+	if sessionID != "" {
+		return s.redis.ListUserLinks(ctx, sessionID)
+	}
+	return nil, data.ErrNonAuthorized
 }
 
-func (s *Service) isAliasValid(ctx context.Context, userID string, alias string, isPrivate bool) error {
+func (s *Service) isAliasValid(ctx context.Context, sessionID, userID string, alias string, isPrivate bool) error {
 	if !isPrivate {
-		exists, err := s.redis.Exists(ctx, alias)
+		exists, err := s.redis.Exists(ctx, &sessionID, alias)
 		if err != nil && err != data.ErrNotFound {
 			return err
 		}
@@ -57,7 +63,7 @@ func (s *Service) isAliasValid(ctx context.Context, userID string, alias string,
 		}
 	}
 
-	exists, err := s.db.Exists(ctx, userID, alias)
+	exists, err := s.db.Exists(ctx, &userID, alias)
 	if err != nil {
 		return err
 	}
@@ -68,7 +74,7 @@ func (s *Service) isAliasValid(ctx context.Context, userID string, alias string,
 	return nil
 }
 
-func (s *Service) Create(ctx context.Context, claims token.Claims, req InsertTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Create(ctx context.Context, req InsertTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		URL:       req.URL,
 		Alias:     req.Alias,
@@ -77,9 +83,9 @@ func (s *Service) Create(ctx context.Context, claims token.Claims, req InsertTin
 		CreatedAt: time.Now().Unix(),
 	}
 
-	hasUserID := claims.UserID != ""
+	hasUserID := req.UserID != ""
 	if hasUserID {
-		tl.UserID = claims.UserID
+		tl.UserID = req.UserID
 	} else {
 		tl.Private = false
 	}
@@ -91,7 +97,7 @@ func (s *Service) Create(ctx context.Context, claims token.Claims, req InsertTin
 		}
 		tl.Alias = alias
 	} else {
-		if err := s.isAliasValid(ctx, tl.UserID, tl.Alias, tl.Private); err != nil {
+		if err := s.isAliasValid(ctx, req.SessionID, req.UserID, tl.Alias, tl.Private); err != nil {
 			return nil, err
 		}
 	}
@@ -101,7 +107,7 @@ func (s *Service) Create(ctx context.Context, claims token.Claims, req InsertTin
 			return nil, err
 		}
 	} else {
-		if err := s.redis.StoreBySessionID(ctx, req.SessionID, ToMapInterface(tl)); err != nil {
+		if err := s.redis.StoreBySessionID(ctx, req.SessionID, ToMap(tl)); err != nil {
 			return nil, err
 		}
 	}

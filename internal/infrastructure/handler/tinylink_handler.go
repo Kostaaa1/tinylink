@@ -84,10 +84,12 @@ func NewTinylinkHandler(tinylinkService *tinylink.Service, errHandler errorhandl
 func (h TinylinkHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 	tinylinkRouter := r.PathPrefix("/tinylink").Subrouter()
 	tinylinkRouter.Use(auth.Middleware)
-	tinylinkRouter.HandleFunc("/list", h.List).Methods("GET")
+	// tinylinkRouter.HandleFunc("/list", h.List).Methods("GET")
 	tinylinkRouter.HandleFunc("/bulk-insert", h.BulkInsert).Methods("POST")
 	tinylinkRouter.HandleFunc("/{alias}", h.Delete).Methods("DELETE")
 	tinylinkRouter.HandleFunc("", h.Update).Methods("PATCH")
+
+	r.HandleFunc("/tinylink/list", h.List).Methods("GET")
 
 	protectedRoute := r.PathPrefix("").Subrouter()
 	protectedRoute.Use(auth.Middleware)
@@ -105,9 +107,11 @@ func (h TinylinkHandler) BulkInsert(w http.ResponseWriter, r *http.Request) {
 func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
-	claims := authcontext.Claims(ctx)
 
-	links, err := h.service.List(ctx, claims)
+	claims, _ := token.ClaimsFromRequest(r)
+	sessionID, _ := token.GetSessionID(r)
+
+	links, err := h.service.List(ctx, sessionID, claims)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -173,13 +177,21 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
+	// ********** //
 	claims, _ := token.ClaimsFromRequest(r)
+	req.UserID = claims.UserID
+	sessionID, err := token.GetOrCreateSessionID(w, r)
+	if err != nil {
+		panic(err)
+	}
+	req.SessionID = sessionID
+	if req.SessionID == "" && req.UserID == "" {
+		h.UnauthorizedResponse(w, r)
+		return
+	}
+	// ********** //
 
-	// req.SessionID, err = token.GetSessionUUID(r)
-	// if err != nil {
-	// }
-
-	tl, err := h.service.Create(ctx, claims, req)
+	tl, err := h.service.Create(ctx, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, tinylink.ErrURLExists):

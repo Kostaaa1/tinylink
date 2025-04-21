@@ -41,7 +41,7 @@ func GenerateRefreshToken() string {
 	return uuid.NewString()
 }
 
-func SetHeaderAndCookie(w http.ResponseWriter, r *http.Request, refreshToken, accessToken string) {
+func SetHeaderAndCookie(w http.ResponseWriter, refreshToken, accessToken string) {
 	w.Header().Set("Authorization", "Bearer "+accessToken)
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshTokenKey,
@@ -63,12 +63,36 @@ func ClearRefreshToken(w http.ResponseWriter) {
 	})
 }
 
-func GetSessionUUID(r *http.Request) (string, error) {
+func GetSessionID(r *http.Request) (string, error) {
 	token, err := r.Cookie(sessionKey)
 	if err != nil {
 		return "", err
 	}
 	return token.Value, nil
+}
+
+// Retrieves or creates a new session ID with a 1-year expiration
+func GetOrCreateSessionID(w http.ResponseWriter, r *http.Request) (string, error) {
+	token, err := r.Cookie(sessionKey)
+	if err != nil {
+		return "", err
+	}
+
+	if token.Value == "" {
+		sessID := uuid.NewString()
+		http.SetCookie(w, &http.Cookie{
+			Name:     sessionKey,
+			Value:    sessID,
+			Secure:   false,
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Path:     "/",
+			MaxAge:   int(SessionTTL.Seconds()),
+		})
+		return sessID, nil
+	} else {
+		return token.Value, nil
+	}
 }
 
 func GetRefreshToken(r *http.Request) (string, error) {

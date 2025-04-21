@@ -175,11 +175,11 @@ func (s *TinylinkSQLRepository) ListUserLinks(ctx context.Context, userID string
 	return tinylinks, nil
 }
 
-func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID string, alias string) (bool, error) {
+func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID *string, alias string) (bool, error) {
 	var query string
 	var args []interface{}
 
-	if userID == "" {
+	if userID == nil {
 		query = `
 			SELECT 1
 			FROM tinylinks

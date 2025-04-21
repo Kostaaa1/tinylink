@@ -17,19 +17,28 @@ type LinkReader interface {
 }
 
 type LinkWriter interface {
-	Create(ctx context.Context, tl *Tinylink) error
-	Update(ctx context.Context, tl *Tinylink) error
+	// deletes the tinylink
 	Delete(ctx context.Context, userID, id string) error
+	// function that creates new tinylink. if user is authenticated, it will use userID from access token and it will store in persisten DB (sqlite). Otherwise, it will use sessionID from session cookie, and it will be stored under that session key in redis. If no userID and sessionID, return 403
+	Create(ctx context.Context, tl *Tinylink) error
+	// updates the tinylink. only for auth users
+	Update(ctx context.Context, tl *Tinylink) error
 }
 
 type CacheStore interface {
+	// caching the url and rowid for redirects
 	CacheURL(ctx context.Context, id uint64, alias, url string) error
-	StoreBySessionID(ctx context.Context, sessionID string, data map[string]interface{}) error
+	// store tinylinks that are belonging to non-authenticated users. By default, session lasts 1 year.
+	StoreBySessionID(ctx context.Context, sessionID string, tl map[string]interface{}) error
 }
 
 type LinkLister interface {
 	// for redis, session ID needs to be used. For db persistence, use userID
 	ListUserLinks(ctx context.Context, userID string) ([]*Tinylink, error)
+}
+
+type LinkChecker interface {
+	Exists(ctx context.Context, userID *string, alias string) (bool, error)
 }
 
 type AliasService interface {
@@ -40,9 +49,11 @@ type DBRepository interface {
 	LinkReader
 	LinkWriter
 	LinkLister
+	LinkChecker
 }
 
 type RedisRepository interface {
+	LinkChecker
 	LinkReader
 	LinkLister
 	CacheStore
