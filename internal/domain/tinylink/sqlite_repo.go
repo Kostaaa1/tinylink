@@ -175,25 +175,33 @@ func (s *TinylinkSQLRepository) ListUserLinks(ctx context.Context, userID string
 	return tinylinks, nil
 }
 
-func (s *TinylinkSQLRepository) Exists(ctx context.Context, userID string, alias string) (bool, error) {
-	var query string
-	var args []interface{}
-
-	if userID == "" {
-		query = `
-			SELECT 1
-			FROM tinylinks
-			WHERE (alias = ? AND is_private = 0)
-		`
-		args = []interface{}{alias}
-	} else {
-		query = `
+func (s *TinylinkSQLRepository) AliasExistsWithID(ctx context.Context, userID string, alias string) (bool, error) {
+	query := `
 			SELECT 1
 			FROM tinylinks
 			WHERE (alias = ? AND is_private = 0) OR (alias = ? AND is_private = 1 AND user_id = ?)
 		`
-		args = []interface{}{alias, alias, userID}
+	args := []interface{}{alias, alias, userID}
+
+	var dummy int
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&dummy)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
 	}
+
+	return true, nil
+}
+
+func (s *TinylinkSQLRepository) AliasExists(ctx context.Context, alias string) (bool, error) {
+	query := `
+			SELECT 1
+			FROM tinylinks
+			WHERE (alias = ? AND is_private = 0)
+		`
+	args := []interface{}{alias}
 
 	var dummy int
 	err := s.db.QueryRowContext(ctx, query, args...).Scan(&dummy)
@@ -236,16 +244,21 @@ func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias s
 	return tl, nil
 }
 
-func (s *TinylinkSQLRepository) Get(ctx context.Context, alias string) (*Tinylink, error) {
+// TODO
+func (s *TinylinkSQLRepository) DeleteAll(ctx context.Context, userID string) error {
+	return nil
+}
+
+func (s *TinylinkSQLRepository) Get(ctx context.Context, rowID uint64) (*Tinylink, error) {
 	query := `
 		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at
 		FROM tinylinks
-		WHERE alias = ?
+		WHERE id = ?
 	`
 
 	tl := &Tinylink{}
 
-	if err := s.db.QueryRowContext(ctx, query, alias).Scan(
+	if err := s.db.QueryRowContext(ctx, query, rowID).Scan(
 		&tl.ID,
 		&tl.Alias,
 		&tl.URL,
@@ -282,7 +295,7 @@ func (s *TinylinkSQLRepository) GetURL(ctx context.Context, alias string) (uint6
 	return rowID, URL, nil
 }
 
-func (s *TinylinkSQLRepository) GetPersonalURL(ctx context.Context, userID, alias string) (uint64, string, error) {
+func (s *TinylinkSQLRepository) GetPrivateURL(ctx context.Context, userID, alias string) (uint64, string, error) {
 	query := `
 		SELECT id, original_url
 		FROM tinylinks

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
@@ -72,8 +71,12 @@ func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepositor
 }
 
 // Test repository
+// func TestTinylinkDbRepository_Get(t *testing.T) {}
+
 // func TestTinylinkDbRepository_Create(t *testing.T) {}
+
 // func TestTinylinkRepository_Update(t *testing.T) {}
+
 // func TestTinylinkRepository_Delete(t *testing.T) {}
 
 // Test service
@@ -84,32 +87,67 @@ func TestTinylinkService_Create(t *testing.T) {
 	provider := tinylink.NewRepositoryProvider(db, redis)
 	tlService := tinylink.NewService(provider)
 
-	mockUrl := "https://www.youtube.com/watch?v=o8NPllzkFhE&t=11s"
+	mockUrl := "https://www.sometesturl.com/d321ks0dai2lk-321=-321"
 	mockAlias := "extra"
 
 	ctx := context.Background()
 
 	sessionID := uuid.NewString()
+
 	req := tinylink.CreateTinylinkRequest{
-		URL:     mockUrl,
-		Alias:   mockAlias,
-		Private: true,
+		URL:   mockUrl,
+		Alias: mockAlias,
 	}
 
-	tl, err := tlService.Create(ctx, "", "", req)
-	require.Error(t, err)
-	require.Equal(t, err, data.ErrUnauthenticated)
-
-	// req.SessionID = sessionID
-	tl, err = tlService.Create(ctx, "", sessionID, req)
+	// creating public tinylink that will be stored in redis.
+	tl, err := tlService.Create(ctx, "", sessionID, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 	require.Equal(t, tl.Alias, req.Alias)
 	require.False(t, tl.Private)
 
-	ok, err := provider.Adapters().TinylinkRedisRepository.Exists(ctx, sessionID, tl.Alias)
+	adapters := provider.Adapters()
+
+	// // create mockUser to prevent FOREIGN key error (tinylinks and users related)
+	userProvider := user.NewRepositoryProvider(db)
+	userRepo := userProvider.Adapters().UserDbRepository
+	mockUser := createMockUser(t, ctx, userRepo)
+
+	mockUserID := mockUser.GetID()
+
+	tl, err = tlService.Create(ctx, mockUserID, "", tinylink.CreateTinylinkRequest{
+		Alias:   mockAlias,
+		URL:     mockUrl,
+		Private: false,
+	})
+	require.Error(t, err)
+	require.Nil(t, tl)
+	require.Equal(t, err, tinylink.ErrAliasExists)
+
+	// create private
+	req.Private = true
+	tl, err = tlService.Create(ctx, mockUserID, "", req)
 	require.NoError(t, err)
-	require.True(t, ok)
+	require.NotNil(t, tl)
+	require.Equal(t, tl.Alias, req.Alias)
+	require.True(t, tl.Private)
+
+	// validate it
+	// ok, err := adapters.TinylinkDBRepository.AliasExistsWithID(ctx, mockUserID, req.Alias)
+	// require.NoError(t, err)
+	// require.True(t, ok)
+
+	// // compare data
+	rowID, url, err := adapters.TinylinkDBRepository.GetPrivateURL(ctx, mockUserID, req.Alias)
+	require.NoError(t, err)
+	require.Greater(t, rowID, uint64(0))
+	require.Equal(t, req.URL, url)
+
+	tl, err = adapters.TinylinkDBRepository.Get(ctx, rowID)
+	require.NoError(t, err)
+	require.NotNil(t, tl)
+	require.Greater(t, tl.CreatedAt, int64(0))
+	require.True(t, tl.Private)
 }
 
 func TestTinylinkService_Redirect(t *testing.T) {}

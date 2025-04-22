@@ -129,15 +129,7 @@ func TestUserService_RegistrationFlow(t *testing.T) {
 	email := fmt.Sprintf("flow_%d@example.com", time.Now().UnixNano())
 	pw := "secure123"
 
-	// Step 1: Register without password
-	user1, err := service.Register(ctx, user.RegisterRequest{
-		Name:  "FlowUser",
-		Email: email,
-	})
-	require.NoError(t, err)
-	require.Empty(t, user1.Password.Hash)
-
-	// Step 2: Register again with password (should update)
+	// Step 1: Register with password (should insert new user)
 	user2, err := service.Register(ctx, user.RegisterRequest{
 		Name:     "FlowUser",
 		Email:    email,
@@ -147,7 +139,7 @@ func TestUserService_RegistrationFlow(t *testing.T) {
 	require.Equal(t, user2.Email, email)
 	require.NotEmpty(t, user2.Password.Hash)
 
-	// Step 3: Attempt third register (should fail)
+	// Step 2: Attempt register with same email (should fail)
 	_, err = service.Register(ctx, user.RegisterRequest{
 		Name:     "FlowUser",
 		Email:    email,

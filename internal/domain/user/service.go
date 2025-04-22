@@ -77,7 +77,6 @@ func (s *Service) HandleGoogleLogin(ctx context.Context, googleUser *GoogleUser)
 
 func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, error) {
 	userData := &User{Email: req.Email, Name: req.Name}
-
 	if err := userData.Password.Set(req.Password); err != nil {
 		return nil, err
 	}

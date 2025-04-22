@@ -30,13 +30,12 @@ CREATE TABLE IF NOT EXISTS tinylinks (
     version INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), 
     expires_at INTEGER NOT NULL DEFAULT 0, 
-    last_visited INTEGER NOT NULL DEFAULT 0, 
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS visit_log (
     tinylink_id INTEGER NOT NULL,
-    timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    `timestamp` INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     usage_count INTEGER NOT NULL DEFAULT 0,
     ip_address TEXT,
     user_agent TEXT,
@@ -57,7 +56,6 @@ CREATE INDEX IF NOT EXISTS idx_tinylinks_alias ON tinylinks(alias);
 CREATE INDEX IF NOT EXISTS idx_tinylinks_user_id ON tinylinks(user_id);
 CREATE INDEX IF NOT EXISTS idx_tinylinks_created_at ON tinylinks(created_at);
 CREATE INDEX IF NOT EXISTS idx_tinylinks_is_private ON tinylinks(is_private);
-CREATE INDEX IF NOT EXISTS idx_tinylinks_last_visited ON tinylinks(last_visited);
 
 CREATE INDEX IF NOT EXISTS idx_visit_log_timestamp ON visit_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_visit_log_geo_country ON visit_log(geo_country);

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/redis/go-redis/v9"
 )
@@ -89,22 +88,46 @@ func (r *TinylinkRedisRepository) ListUserLinks(ctx context.Context, sessionID s
 	return tinylinks, nil
 }
 
-func (r *TinylinkRedisRepository) Exists(ctx context.Context, userID string, alias string) (bool, error) {
-	key := fmt.Sprintf("%s:%s", userID, alias)
+func (r *TinylinkRedisRepository) AliasExists(ctx context.Context, alias string) (bool, error) {
+	key := fmt.Sprintf("alias:%s", alias)
 	exists, err := r.client.Exists(ctx, key).Result()
 	if err != nil {
-		if err == redis.Nil {
-			return false, data.ErrNotFound
-		}
 		return false, err
 	}
 	return exists > 0, nil
 }
 
+func (r *TinylinkRedisRepository) DeleteAll(ctx context.Context, sessionID string) error {
+	iter := r.client.Scan(ctx, 0, fmt.Sprintf("%s:*", sessionID), 0).Iterator()
+	var keys []string
+
+	for iter.Next(ctx) {
+		keys = append(keys, iter.Val())
+		alias, err := r.client.HGet(ctx, iter.Val(), "alias").Result()
+		if err == nil && alias != "" {
+			keys = append(keys, alias)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return err
+	}
+
+	if len(keys) == 0 {
+		return fmt.Errorf("no keys to delete for: %s", sessionID)
+	}
+
+	_, err := r.client.Del(ctx, keys...).Result()
+	return err
+}
+
 func (r *TinylinkRedisRepository) StoreBySessionID(ctx context.Context, sessionID string, tl map[string]interface{}) error {
 	key := fmt.Sprintf("%s:%s", sessionID, tl["alias"])
-
 	pipe := r.client.Pipeline()
+
+	// for reverse lookup
+	reverseKey := fmt.Sprintf("alias:%s", tl["alias"])
+	pipe.SetEx(ctx, reverseKey, sessionID, token.SessionTTL)
 
 	if _, err := pipe.HSet(ctx, key, map[string]interface{}{
 		"id":         tl["id"],
@@ -141,10 +164,6 @@ func (r *TinylinkRedisRepository) CacheURL(ctx context.Context, id uint64, alias
 	}
 
 	return nil
-}
-
-func (r *TinylinkRedisRepository) GetPersonalURL(ctx context.Context, userID, alias string) (uint64, string, error) {
-	return 0, "", nil
 }
 
 func (r *TinylinkRedisRepository) GetURL(ctx context.Context, alias string) (uint64, string, error) {

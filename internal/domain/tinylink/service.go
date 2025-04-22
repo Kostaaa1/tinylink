@@ -52,9 +52,25 @@ func (s *Service) List(ctx context.Context, sessionID string, claims token.Claim
 	return nil, data.ErrUnauthenticated
 }
 
-func (s *Service) isAliasValid(ctx context.Context, sessionID, userID string, alias string, isPrivate bool) error {
-	if !isPrivate {
-		exists, err := s.redis.Exists(ctx, sessionID, alias)
+func (s *Service) IsAliasValid(ctx context.Context, userID, sessionID string, alias string, isPrivate bool) error {
+	if isPrivate {
+		exists, err := s.db.AliasExistsWithID(ctx, userID, alias)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return ErrAliasExists
+		}
+	} else {
+		exists, err := s.redis.AliasExists(ctx, alias)
+		if err != nil && err != data.ErrNotFound {
+			return err
+		}
+		if exists {
+			return ErrAliasExists
+		}
+
+		exists, err = s.db.AliasExists(ctx, alias)
 		if err != nil && err != data.ErrNotFound {
 			return err
 		}
@@ -63,28 +79,21 @@ func (s *Service) isAliasValid(ctx context.Context, sessionID, userID string, al
 		}
 	}
 
-	exists, err := s.db.Exists(ctx, userID, alias)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return ErrAliasExists
-	}
-
 	return nil
 }
 
 func (s *Service) Create(ctx context.Context, userID, sessionID string, req CreateTinylinkRequest) (*Tinylink, error) {
-	if userID == "" && sessionID == "" {
-		return nil, data.ErrUnauthenticated
-	}
-
 	tl := &Tinylink{
 		URL:       req.URL,
+		UserID:    userID,
 		Alias:     req.Alias,
 		Private:   req.Private,
 		Domain:    req.Domain,
 		CreatedAt: time.Now().Unix(),
+	}
+
+	if userID == "" {
+		tl.Private = false
 	}
 
 	if tl.Alias == "" {
@@ -94,19 +103,17 @@ func (s *Service) Create(ctx context.Context, userID, sessionID string, req Crea
 		}
 		tl.Alias = alias
 	} else {
-		if err := s.isAliasValid(ctx, sessionID, userID, tl.Alias, tl.Private); err != nil {
+		if err := s.IsAliasValid(ctx, userID, sessionID, tl.Alias, tl.Private); err != nil {
 			return nil, err
 		}
 	}
 
 	switch {
 	case userID != "":
-		tl.UserID = userID
 		if err := s.db.Create(ctx, tl); err != nil {
 			return nil, err
 		}
 	case sessionID != "":
-		tl.Private = false
 		if err := s.redis.StoreBySessionID(ctx, sessionID, ToMap(tl)); err != nil {
 			return nil, err
 		}
@@ -154,7 +161,7 @@ func (s *Service) Redirect(ctx context.Context, userID *string, alias string, is
 		err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
 			// based on route (/p/ or public), GET the URL by alias/alias-user-id.
 			if isPrivate && *userID != "" {
-				if rowID, url, err = dbAdapters.TinylinkDBRepository.GetPersonalURL(ctx, *userID, alias); err != nil {
+				if rowID, url, err = dbAdapters.TinylinkDBRepository.GetPrivateURL(ctx, *userID, alias); err != nil {
 					return err
 				}
 			} else {

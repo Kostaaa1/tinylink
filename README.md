@@ -17,7 +17,7 @@ URL Shortener
 - DDD pattern
 - Implement stateless auth - refresh (long-lived) / access (short-lived JWT) tokens. Use redis to store refresh tokens
 - SQLite for persisted, redis for tinylinks
-- Analytics - track clicks, geolocation, etc...
+- Analytics - track clicks, geolocation, etc...	
 ---
 
 ## Features
@@ -30,3 +30,9 @@ URL Shortener
 	- ??? they become persisted when user creates an account - need to be added via ???
 	- redis cached for 6 hours when accesed (avoids db call for frequently accessed tinylinks)
 	- Support for bulk inserts (multipart-form for json/yaml/xml/csv) - only for authenticated users
+
+- Tests 
+	- Test handlers that includes validation
+	- Test service layer with valid data only
+	- Test repository layer
+	- Integration/unit tests
