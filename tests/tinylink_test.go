@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
@@ -86,25 +87,29 @@ func TestTinylinkService_Create(t *testing.T) {
 	mockUrl := "https://www.youtube.com/watch?v=o8NPllzkFhE&t=11s"
 	mockAlias := "extra"
 
-	sessionID := uuid.NewString()
-	req := tinylink.InsertTinylinkRequest{
-		URL:       mockUrl,
-		Alias:     mockAlias,
-		SessionID: sessionID,
-		Private:   true,
-	}
-
 	ctx := context.Background()
 
-	tl, err := tlService.Create(ctx, req)
+	sessionID := uuid.NewString()
+	req := tinylink.CreateTinylinkRequest{
+		URL:     mockUrl,
+		Alias:   mockAlias,
+		Private: true,
+	}
+
+	tl, err := tlService.Create(ctx, "", "", req)
+	require.Error(t, err)
+	require.Equal(t, err, data.ErrUnauthenticated)
+
+	// req.SessionID = sessionID
+	tl, err = tlService.Create(ctx, "", sessionID, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 	require.Equal(t, tl.Alias, req.Alias)
 	require.False(t, tl.Private)
 
-	val, err := redis.Exists(ctx, fmt.Sprintf("%s:%s", sessionID, mockAlias)).Result()
+	ok, err := provider.Adapters().TinylinkRedisRepository.Exists(ctx, sessionID, tl.Alias)
 	require.NoError(t, err)
-	require.Greater(t, val, int64(0))
+	require.True(t, ok)
 }
 
 func TestTinylinkService_Redirect(t *testing.T) {}

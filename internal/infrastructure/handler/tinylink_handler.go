@@ -28,7 +28,7 @@ type TinylinkDTO struct {
 	ID        uint64     `json:"-"`
 	Alias     string     `json:"alias"`
 	URL       string     `json:"original_url"`
-	UserID    uint64     `json:"user_id,omitempty"`
+	UserID    uint64     `json:"-"`
 	Private   bool       `json:"private"`
 	Domain    string     `json:"domain,omitempty"`
 	Version   uint64     `json:"version"`
@@ -161,7 +161,7 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req tinylink.InsertTinylinkRequest
+	var req tinylink.CreateTinylinkRequest
 	err := readJSON(r, &req)
 	if err != nil {
 		h.BadRequestResponse(w, r, err)
@@ -174,24 +174,21 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, sessionID, err := token.GetAuthIdentifiers(w, r)
+	if err != nil {
+		switch {
+		case errors.Is(err, data.ErrUnauthenticated):
+			h.UnauthorizedResponse(w, r)
+		default:
+			h.ServerErrorResponse(w, r, err)
+		}
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
 	defer cancel()
 
-	// ********** //
-	claims, _ := token.ClaimsFromRequest(r)
-	req.UserID = claims.UserID
-	sessionID, err := token.GetOrCreateSessionID(w, r)
-	if err != nil {
-		panic(err)
-	}
-	req.SessionID = sessionID
-	if req.SessionID == "" && req.UserID == "" {
-		h.UnauthorizedResponse(w, r)
-		return
-	}
-	// ********** //
-
-	tl, err := h.service.Create(ctx, req)
+	tl, err := h.service.Create(ctx, userID, sessionID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, tinylink.ErrURLExists):

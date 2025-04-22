@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/redis/go-redis/v9"
 )
@@ -88,10 +89,13 @@ func (r *TinylinkRedisRepository) ListUserLinks(ctx context.Context, sessionID s
 	return tinylinks, nil
 }
 
-func (r *TinylinkRedisRepository) Exists(ctx context.Context, userID *string, alias string) (bool, error) {
-	key := fmt.Sprintf("%s:%s", *userID, alias)
+func (r *TinylinkRedisRepository) Exists(ctx context.Context, userID string, alias string) (bool, error) {
+	key := fmt.Sprintf("%s:%s", userID, alias)
 	exists, err := r.client.Exists(ctx, key).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return false, data.ErrNotFound
+		}
 		return false, err
 	}
 	return exists > 0, nil

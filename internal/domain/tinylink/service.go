@@ -49,12 +49,12 @@ func (s *Service) List(ctx context.Context, sessionID string, claims token.Claim
 	if sessionID != "" {
 		return s.redis.ListUserLinks(ctx, sessionID)
 	}
-	return nil, data.ErrNonAuthorized
+	return nil, data.ErrUnauthenticated
 }
 
 func (s *Service) isAliasValid(ctx context.Context, sessionID, userID string, alias string, isPrivate bool) error {
 	if !isPrivate {
-		exists, err := s.redis.Exists(ctx, &sessionID, alias)
+		exists, err := s.redis.Exists(ctx, sessionID, alias)
 		if err != nil && err != data.ErrNotFound {
 			return err
 		}
@@ -63,7 +63,7 @@ func (s *Service) isAliasValid(ctx context.Context, sessionID, userID string, al
 		}
 	}
 
-	exists, err := s.db.Exists(ctx, &userID, alias)
+	exists, err := s.db.Exists(ctx, userID, alias)
 	if err != nil {
 		return err
 	}
@@ -74,20 +74,17 @@ func (s *Service) isAliasValid(ctx context.Context, sessionID, userID string, al
 	return nil
 }
 
-func (s *Service) Create(ctx context.Context, req InsertTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Create(ctx context.Context, userID, sessionID string, req CreateTinylinkRequest) (*Tinylink, error) {
+	if userID == "" && sessionID == "" {
+		return nil, data.ErrUnauthenticated
+	}
+
 	tl := &Tinylink{
 		URL:       req.URL,
 		Alias:     req.Alias,
-		Domain:    &req.Domain,
 		Private:   req.Private,
+		Domain:    req.Domain,
 		CreatedAt: time.Now().Unix(),
-	}
-
-	hasUserID := req.UserID != ""
-	if hasUserID {
-		tl.UserID = req.UserID
-	} else {
-		tl.Private = false
 	}
 
 	if tl.Alias == "" {
@@ -97,17 +94,20 @@ func (s *Service) Create(ctx context.Context, req InsertTinylinkRequest) (*Tinyl
 		}
 		tl.Alias = alias
 	} else {
-		if err := s.isAliasValid(ctx, req.SessionID, req.UserID, tl.Alias, tl.Private); err != nil {
+		if err := s.isAliasValid(ctx, sessionID, userID, tl.Alias, tl.Private); err != nil {
 			return nil, err
 		}
 	}
 
-	if hasUserID {
+	switch {
+	case userID != "":
+		tl.UserID = userID
 		if err := s.db.Create(ctx, tl); err != nil {
 			return nil, err
 		}
-	} else {
-		if err := s.redis.StoreBySessionID(ctx, req.SessionID, ToMap(tl)); err != nil {
+	case sessionID != "":
+		tl.Private = false
+		if err := s.redis.StoreBySessionID(ctx, sessionID, ToMap(tl)); err != nil {
 			return nil, err
 		}
 	}

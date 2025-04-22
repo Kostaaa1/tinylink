@@ -2,12 +2,14 @@ package token
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -75,24 +77,23 @@ func GetSessionID(r *http.Request) (string, error) {
 func GetOrCreateSessionID(w http.ResponseWriter, r *http.Request) (string, error) {
 	token, err := r.Cookie(sessionKey)
 	if err != nil {
-		return "", err
-	}
+		if errors.Is(err, http.ErrNoCookie) {
+			sessID := uuid.NewString()
+			http.SetCookie(w, &http.Cookie{
+				Name:     sessionKey,
+				Value:    sessID,
+				Secure:   false,
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Path:     "/",
+				MaxAge:   int(SessionTTL.Seconds()),
+			})
+			return sessID, nil
+		}
 
-	if token.Value == "" {
-		sessID := uuid.NewString()
-		http.SetCookie(w, &http.Cookie{
-			Name:     sessionKey,
-			Value:    sessID,
-			Secure:   false,
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Path:     "/",
-			MaxAge:   int(SessionTTL.Seconds()),
-		})
-		return sessID, nil
-	} else {
-		return token.Value, nil
+		return "", fmt.Errorf("failed to read session cookie: %w", err)
 	}
+	return token.Value, nil
 }
 
 func GetRefreshToken(r *http.Request) (string, error) {
@@ -101,6 +102,22 @@ func GetRefreshToken(r *http.Request) (string, error) {
 		return "", err
 	}
 	return token.Value, nil
+}
+
+// this sucks
+func GetAuthIdentifiers(w http.ResponseWriter, r *http.Request) (string, string, error) {
+	claims, err := ClaimsFromRequest(r)
+	if err != nil {
+		return "", "", err
+	}
+	sessionID, err := GetOrCreateSessionID(w, r)
+	if err != nil {
+		return "", "", err
+	}
+	if sessionID == "" && claims.UserID == "" {
+		return "", "", data.ErrUnauthenticated
+	}
+	return claims.UserID, sessionID, nil
 }
 
 func GenerateAccessToken(userID uint64) (string, Claims, error) {

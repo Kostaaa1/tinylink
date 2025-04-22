@@ -20,20 +20,11 @@ type Tinylink struct {
 	Alias     string
 	URL       string
 	UserID    string
-	Private   bool
 	Domain    *string
+	Private   bool
 	Version   uint64
 	ExpiresAt int64
 	CreatedAt int64
-}
-
-type InsertTinylinkRequest struct {
-	URL       string `json:"url"`
-	Alias     string `json:"alias"`
-	Domain    string `json:"domain"`
-	Private   bool   `json:"private"`
-	UserID    string
-	SessionID string
 }
 
 func ToMap(tl *Tinylink) map[string]interface{} {
@@ -107,7 +98,14 @@ func FromMap(data map[string]string) (*Tinylink, error) {
 	return tl, nil
 }
 
-func (req *InsertTinylinkRequest) IsValid(v *validator.Validator) bool {
+type CreateTinylinkRequest struct {
+	URL     string  `json:"url"`
+	Alias   string  `json:"alias"`
+	Private bool    `json:"private"`
+	Domain  *string `json:"domain"`
+}
+
+func (req *CreateTinylinkRequest) IsValid(v *validator.Validator) bool {
 	v.Check(req.URL != "", "url", "must be provided")
 	_, err := url.ParseRequestURI(req.URL)
 	v.Check(err == nil, "url", "invalid url format")

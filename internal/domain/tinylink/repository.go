@@ -19,7 +19,7 @@ type LinkReader interface {
 type LinkWriter interface {
 	// deletes the tinylink
 	Delete(ctx context.Context, userID, id string) error
-	// function that creates new tinylink. if user is authenticated, it will use userID from access token and it will store in persisten DB (sqlite). Otherwise, it will use sessionID from session cookie, and it will be stored under that session key in redis. If no userID and sessionID, return 403
+	// function that creates new tinylink. If user is authenticated, it will use userID from access token and it will store in persisten DB (sqlite). Otherwise, it will use sessionID from session cookie, and it will be stored under that session key in redis. If no userID and sessionID, respond with 401
 	Create(ctx context.Context, tl *Tinylink) error
 	// updates the tinylink. only for auth users
 	Update(ctx context.Context, tl *Tinylink) error
@@ -38,7 +38,8 @@ type LinkLister interface {
 }
 
 type LinkChecker interface {
-	Exists(ctx context.Context, userID *string, alias string) (bool, error)
+	// identifier - sessionID or userID
+	Exists(ctx context.Context, identifier string, alias string) (bool, error)
 }
 
 type AliasService interface {
