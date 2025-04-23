@@ -1,4 +1,4 @@
-package tinylink_test
+package user_test
 
 import (
 	"context"
@@ -8,18 +8,21 @@ import (
 
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/redisdb"
+	"github.com/Kostaaa1/tinylink/internal/infrastructure/db/sqlitedb"
 	"github.com/stretchr/testify/require"
 )
 
+var ctx = context.TODO()
+
 func TestUserService_LoginAfterNormalRegistration(t *testing.T) {
-	db := setupTestDB(t)
-	redis := setupRedisDB(t)
+	db := sqlitedb.StartTest(t)
+	redis := redisdb.StartTest(t)
 
 	provider := user.NewRepositoryProvider(db)
 	tokenRepo := token.NewRedisTokenRepository(redis)
 	service := user.NewService(provider, tokenRepo)
 
-	ctx := context.Background()
 	email := fmt.Sprintf("flow_%d@example.com", time.Now().UnixNano())
 	pw := "securepassword123"
 
@@ -53,14 +56,13 @@ func TestUserService_LoginAfterNormalRegistration(t *testing.T) {
 }
 
 func TestUserService_LoginAfterRegistrationWithGoogle(t *testing.T) {
-	db := setupTestDB(t)
-	redis := setupRedisDB(t)
+	db := sqlitedb.StartTest(t)
+	redis := redisdb.StartTest(t)
 
 	provider := user.NewRepositoryProvider(db)
 	tokenRepo := token.NewRedisTokenRepository(redis)
 	service := user.NewService(provider, tokenRepo)
 
-	ctx := context.Background()
 	email := fmt.Sprintf("flow_%d@example.com", time.Now().UnixNano())
 	pw := "securepassword123"
 
@@ -121,11 +123,10 @@ func TestUserService_LoginAfterRegistrationWithGoogle(t *testing.T) {
 }
 
 func TestUserService_RegistrationFlow(t *testing.T) {
-	db := setupTestDB(t)
+	db := sqlitedb.StartTest(t)
 	provider := user.NewRepositoryProvider(db)
 	service := user.NewService(provider, nil)
 
-	ctx := context.Background()
 	email := fmt.Sprintf("flow_%d@example.com", time.Now().UnixNano())
 	pw := "secure123"
 

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Kostaaa1/tinylink/internal/common/data"
 	"github.com/Kostaaa1/tinylink/internal/domain/token"
 	"github.com/redis/go-redis/v9"
 )
@@ -55,7 +56,7 @@ func (r *TinylinkRedisRepository) ListUserLinks(ctx context.Context, sessionID s
 	}
 
 	if len(keys) == 0 {
-		return nil, fmt.Errorf("no tinylinks found by session_id: %s", sessionID)
+		return nil, data.ErrNotFound
 	}
 
 	pipe := r.client.Pipeline()
@@ -88,15 +89,6 @@ func (r *TinylinkRedisRepository) ListUserLinks(ctx context.Context, sessionID s
 	return tinylinks, nil
 }
 
-func (r *TinylinkRedisRepository) AliasExists(ctx context.Context, alias string) (bool, error) {
-	key := fmt.Sprintf("alias:%s", alias)
-	exists, err := r.client.Exists(ctx, key).Result()
-	if err != nil {
-		return false, err
-	}
-	return exists > 0, nil
-}
-
 func (r *TinylinkRedisRepository) DeleteAll(ctx context.Context, sessionID string) error {
 	iter := r.client.Scan(ctx, 0, fmt.Sprintf("%s:*", sessionID), 0).Iterator()
 	var keys []string
@@ -121,30 +113,31 @@ func (r *TinylinkRedisRepository) DeleteAll(ctx context.Context, sessionID strin
 	return err
 }
 
-func (r *TinylinkRedisRepository) StoreBySessionID(ctx context.Context, sessionID string, tl map[string]interface{}) error {
-	key := fmt.Sprintf("%s:%s", sessionID, tl["alias"])
-	pipe := r.client.Pipeline()
-
-	// for reverse lookup
-	reverseKey := fmt.Sprintf("alias:%s", tl["alias"])
-	pipe.SetEx(ctx, reverseKey, sessionID, token.SessionTTL)
-
-	if _, err := pipe.HSet(ctx, key, map[string]interface{}{
-		"id":         tl["id"],
-		"url":        tl["url"],
-		"alias":      tl["alias"],
-		"created_at": tl["created_at"],
-	}).Result(); err != nil {
-		return err
+func (r *TinylinkRedisRepository) AliasExists(ctx context.Context, alias string) (bool, error) {
+	key := fmt.Sprintf("alias:%s", alias)
+	exists, err := r.client.Exists(ctx, key).Result()
+	if err != nil {
+		return false, err
 	}
+	return exists > 0, nil
+}
+
+func (r *TinylinkRedisRepository) StoreBySessionID(ctx context.Context, sessionID string, tl map[string]interface{}) error {
+	alias := tl["alias"].(string)
+	key := fmt.Sprintf("%s:%s", sessionID, alias)
+	reverseKey := fmt.Sprintf("alias:%s", alias)
+
+	pipe := r.client.Pipeline()
+	pipe.SetEx(ctx, reverseKey, sessionID, token.SessionTTL)
+	pipe.HSet(ctx, key, map[string]interface{}{
+		"alias":      alias,
+		"url":        tl["url"],
+		"created_at": tl["created_at"],
+	})
 	pipe.Expire(ctx, key, token.SessionTTL)
 
 	_, err := pipe.Exec(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (r *TinylinkRedisRepository) CacheURL(ctx context.Context, id uint64, alias, url string) error {
@@ -166,7 +159,7 @@ func (r *TinylinkRedisRepository) CacheURL(ctx context.Context, id uint64, alias
 	return nil
 }
 
-func (r *TinylinkRedisRepository) GetURL(ctx context.Context, alias string) (uint64, string, error) {
+func (r *TinylinkRedisRepository) RedirectURL(ctx context.Context, alias string) (uint64, string, error) {
 	res, err := r.client.HMGet(ctx, alias, "url", "id").Result()
 	if err != nil {
 		return 0, "", err

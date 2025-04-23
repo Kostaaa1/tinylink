@@ -2,11 +2,32 @@ package redisdb
 
 import (
 	"context"
+	"testing"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/config"
 	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/require"
 )
+
+func StartTest(t *testing.T) *redis.Client {
+	t.Helper()
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "lagaosiprovidnokopas",
+		DB:       0,
+		PoolSize: 25,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.Nil(t, redisClient.Ping(ctx).Err())
+	redisClient.FlushAll(ctx)
+
+	return redisClient
+}
 
 func Start(conf config.RedisConfig) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{

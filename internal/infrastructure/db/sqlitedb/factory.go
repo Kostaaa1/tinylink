@@ -8,12 +8,36 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"testing"
 	"time"
 
 	"github.com/Kostaaa1/tinylink/pkg/config"
+	"github.com/stretchr/testify/require"
 
 	_ "embed"
 )
+
+func StartTest(t *testing.T) *sql.DB {
+	t.Helper()
+
+	dbPath := filepath.Join(t.TempDir(), "tinylink_test.db")
+
+	conf := config.SQLConfig{
+		SQLitePath:   dbPath,
+		MaxOpenConns: 25,
+		MaxIdleConns: 25,
+	}
+
+	db, err := StartDB(conf)
+	require.NoError(t, err)
+
+	file, err := os.ReadFile("../../../sql/tables.sql")
+	require.NoError(t, err)
+	_, err = db.Exec(string(file))
+	require.NoError(t, err)
+
+	return db
+}
 
 func StartDB(conf config.SQLConfig) (*sql.DB, error) {
 	var err error

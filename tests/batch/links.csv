@@ -1,0 +1,4 @@
+url,alias,private,domain
+https://webmail.loopia.rs/?_task=mail&_mbox=INBOX,posao,false,
+https://blog.cubed.run/the-cards-of-concurrency-in-go-0d7582cecb79?gi=532f2731d9f9,golang,false,
+https://zemfira.me/posts/things-i-wish-i-knew-about-sqlc/,sqlc,false,

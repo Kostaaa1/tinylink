@@ -215,40 +215,6 @@ func (s *TinylinkSQLRepository) AliasExists(ctx context.Context, alias string) (
 	return true, nil
 }
 
-func (s *TinylinkSQLRepository) GetByUserID(ctx context.Context, userID, alias string) (*Tinylink, error) {
-	query := `
-		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at 
-		FROM tinylinks
-		WHERE alias = ? AND user_id = ?
-	`
-
-	tl := &Tinylink{}
-
-	if err := s.db.QueryRowContext(ctx, query, alias, userID).Scan(
-		&tl.ID,
-		&tl.Alias,
-		&tl.URL,
-		&tl.UserID,
-		&tl.Private,
-		&tl.Domain,
-		&tl.Version,
-		&tl.CreatedAt,
-		&tl.ExpiresAt,
-	); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, data.ErrNotFound
-		}
-		return nil, err
-	}
-
-	return tl, nil
-}
-
-// TODO
-func (s *TinylinkSQLRepository) DeleteAll(ctx context.Context, userID string) error {
-	return nil
-}
-
 func (s *TinylinkSQLRepository) Get(ctx context.Context, rowID uint64) (*Tinylink, error) {
 	query := `
 		SELECT id, alias, original_url, user_id, is_private, domain, version, created_at, expires_at
@@ -278,7 +244,7 @@ func (s *TinylinkSQLRepository) Get(ctx context.Context, rowID uint64) (*Tinylin
 	return tl, nil
 }
 
-func (s *TinylinkSQLRepository) GetURL(ctx context.Context, alias string) (uint64, string, error) {
+func (s *TinylinkSQLRepository) RedirectURL(ctx context.Context, alias string) (uint64, string, error) {
 	query := `
 		SELECT id, original_url
 		FROM tinylinks
@@ -295,7 +261,7 @@ func (s *TinylinkSQLRepository) GetURL(ctx context.Context, alias string) (uint6
 	return rowID, URL, nil
 }
 
-func (s *TinylinkSQLRepository) GetPrivateURL(ctx context.Context, userID, alias string) (uint64, string, error) {
+func (s *TinylinkSQLRepository) RedirectURLByID(ctx context.Context, userID, alias string) (uint64, string, error) {
 	query := `
 		SELECT id, original_url
 		FROM tinylinks
@@ -311,23 +277,6 @@ func (s *TinylinkSQLRepository) GetPrivateURL(ctx context.Context, userID, alias
 	}
 	return rowID, url, nil
 }
-
-// func (s *TinylinkSQLRepository) UpdateUsage(ctx context.Context, rowID uint64) error {
-// 	fmt.Println("UPDATING USAGE FOR ROW: ", rowID)
-// 	query := `UPDATE tinylinks
-// 	SET usage_count = usage_count + 1, last_visited = strftime('%s', 'now')
-// 	WHERE id = ?
-// 	RETURNING last_visited`
-// 	var dummy int
-// 	err := s.db.QueryRowContext(ctx, query, rowID).Scan(&dummy)
-// 	if err != nil {
-// 		if err == sql.ErrNoRows {
-// 			return data.ErrNotFound
-// 		}
-// 		return err
-// 	}
-// 	return nil
-// }
 
 func (s *TinylinkSQLRepository) Delete(ctx context.Context, userID, alias string) error {
 	query := `DELETE FROM tinylinks WHERE user_id = ? AND alias = ?`

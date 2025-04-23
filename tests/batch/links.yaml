@@ -1,0 +1,14 @@
+- url: "https://webmail.loopia.rs/?_task=mail&_mbox=INBOX"
+  alias: "posao"
+  private: "false"
+  domain: ""
+
+- url: "https://blog.cubed.run/the-cards-of-concurrency-in-go-0d7582cecb79?gi=532f2731d9f9"
+  alias: "golang"
+  private: "false"
+  domain: ""
+
+- url: "https://zemfira.me/posts/things-i-wish-i-knew-about-sqlc/"
+  alias: "sqlc"
+  private: "false"
+  domain: ""

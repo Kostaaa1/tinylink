@@ -140,7 +140,7 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	claims := authcontext.Claims(ctx)
 
-	tl, err := h.service.Update(ctx, claims, req)
+	tl, err := h.service.Update(ctx, claims.UserID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrNotFound):

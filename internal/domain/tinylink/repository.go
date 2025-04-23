@@ -11,21 +11,24 @@ type db interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
-type LinkPrivateReader interface {
+type LinkPrivateRedirecter interface {
 	// Used for redirects (redis - cached | sqlite - persisted). It returns row ID, original URL and error if fails. used in RedirectPrivate. Identifier can be (session ID - cookie value that's used for public redis tinylinks) and (user ID - used for persisted SQLite).
-	GetPrivateURL(ctx context.Context, identifier, alias string) (uint64, string, error)
+	RedirectURLByID(ctx context.Context, identifier, alias string) (uint64, string, error)
+}
+
+type LinkRedirecter interface {
+	// Used for redirects (redis - cached | sqlite - persisted). Searches row by alias. It returns row ID, original URL and error if fails.
+	RedirectURL(ctx context.Context, alias string) (uint64, string, error)
 }
 
 type LinkReader interface {
-	// Used for redirects (redis - cached | sqlite - persisted). Searches row by alias. It returns row ID, original URL and error if fails.
-	GetURL(ctx context.Context, alias string) (uint64, string, error)
+	// get data by rowID
+	Get(ctx context.Context, rowID uint64) (*Tinylink, error)
 }
 
 type LinkWriter interface {
 	// deletes the tinylink
 	Delete(ctx context.Context, userID, id string) error
-	// deletes all by identifier
-	DeleteAll(ctx context.Context, identifier string) error
 	// creates new tinylink. If user is authenticated, it will use userID from access token and it will store in persisten DB (sqlite). Otherwise, it will use sessionID from session cookie, and it will be stored under that session key in redis. If no userID and sessionID, respond with 401
 	Create(ctx context.Context, tl *Tinylink) error
 	// updates the tinylink. only for auth users
@@ -41,7 +44,7 @@ type CacheStore interface {
 
 type LinkLister interface {
 	// for redis, session ID needs to be used. For db persistence, use userID
-	ListUserLinks(ctx context.Context, userID string) ([]*Tinylink, error)
+	ListUserLinks(ctx context.Context, identifier string) ([]*Tinylink, error)
 }
 
 type AliasService interface {
@@ -63,17 +66,19 @@ type FullAliasChecker interface {
 
 type DBRepository interface {
 	FullAliasChecker
+	LinkRedirecter
+	LinkPrivateRedirecter
 	LinkReader
-	LinkPrivateReader
 	LinkWriter
 	LinkLister
-	Get(ctx context.Context, rowID uint64) (*Tinylink, error)
 }
 
 type RedisRepository interface {
 	GlobalAliasChecker
-	LinkReader
+	LinkRedirecter
 	LinkLister
 	CacheStore
 	AliasService
+	// deletes all by identifier
+	DeleteAll(ctx context.Context, identifier string) error
 }

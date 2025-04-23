@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	SessionTTL             = 365 * 24 * time.Hour
+	SessionTTL             = time.Hour * 24 * 365
 	sessionKey             = "tinylink_session"
 	refreshTokenKey        = "refresh_token"
 	jwtSecret              = []byte(os.Getenv("JWT_SECRET_KEY"))
@@ -36,6 +36,9 @@ type Claims struct {
 func ClaimsFromRequest(r *http.Request) (Claims, error) {
 	bearer := r.Header.Get("Authorization")
 	token := strings.TrimPrefix(bearer, "Bearer ")
+	if token == "" {
+		return Claims{}, nil
+	}
 	return VerifyAccessToken(token)
 }
 

@@ -114,6 +114,7 @@ func (req *CreateTinylinkRequest) IsValid(v *validator.Validator) bool {
 }
 
 type UpdateTinylinkRequest struct {
+	ID      uint64  `json:"id"`
 	URL     *string `json:"url"`
 	Alias   *string `json:"alias"`
 	Domain  *string `json:"domain"`
@@ -121,6 +122,9 @@ type UpdateTinylinkRequest struct {
 }
 
 func (req *UpdateTinylinkRequest) IsValid(v *validator.Validator) bool {
+	if req.ID == 0 {
+		v.Check(req.ID != 0, "id", "must be provided")
+	}
 	if req.Alias != nil {
 		v.Check(*req.Alias != "", "alias", "must be provided")
 		v.Check(!(*req.Alias != "" && len(*req.Alias) < 5), "alias", "must be at least 5 characters long")
