@@ -24,7 +24,7 @@ func randomURL() string {
 }
 
 func randomAlias() string {
-	return fmt.Sprintf("alias-%s", uuid.NewString())
+	return uuid.NewString()
 }
 
 func setupTinylinkSuite(t *testing.T) (tinylink.Adapters, *tinylink.Service, user.Adapters, *user.Service, string) {
@@ -57,10 +57,8 @@ func TestTinylinkService_CreatePublic(t *testing.T) {
 
 	adapters, service, userAdapters, _, sessionID := setupTinylinkSuite(t)
 	mockUser := createMockUser(t, ctx, userAdapters.UserDbRepository)
-
 	url := randomURL()
 	alias := randomAlias()
-
 	req := tinylink.CreateTinylinkRequest{
 		URL:   url,
 		Alias: alias,
@@ -88,7 +86,7 @@ func TestTinylinkService_CreatePublic(t *testing.T) {
 	require.NotNil(t, tl2)
 	require.Greater(t, tl.CreatedAt, int64(0))
 
-	ok, err = adapters.TinylinkRedisRepository.AliasExists(ctx, req.Alias)
+	ok, err = adapters.TinylinkRedisRepository.AliasExists(ctx, req2.Alias)
 	require.Nil(t, err)
 	require.True(t, ok)
 }
@@ -107,7 +105,7 @@ func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, tl1)
-	require.Equal(t, tl1.ID, 0)
+	require.Equal(t, tl1.ID, uint64(0))
 
 	tl2, err := service.Create(ctx, "", sessionID, tinylink.CreateTinylinkRequest{
 		URL:   randomURL(),
@@ -115,7 +113,7 @@ func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, tl2)
-	require.Equal(t, tl2.ID, 0)
+	require.Equal(t, tl2.ID, uint64(0))
 
 	// validate
 	links, err := adapters.TinylinkRedisRepository.ListUserLinks(ctx, sessionID)
@@ -139,7 +137,7 @@ func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
 	// validate that sqlite includes THOSE links
 	dbLinks, err := adapters.TinylinkDBRepository.ListUserLinks(ctx, userID)
 	require.NoError(t, err)
-	require.Equal(t, dbLinks, 2)
+	require.Equal(t, len(dbLinks), 2)
 	require.Equal(t, dbLinks[0].Alias, tl1.Alias)
 	require.Equal(t, dbLinks[1].Alias, tl2.Alias)
 }
