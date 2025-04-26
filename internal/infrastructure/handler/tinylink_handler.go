@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -105,13 +104,11 @@ func (h TinylinkHandler) BulkInsert(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
-
-	claims, _ := token.ClaimsFromRequest(r)
 	sessionID, _ := token.GetSessionID(r)
+	claims, _ := token.ClaimsFromRequest(r)
+	userID := &claims.UserID
 
-	links, err := h.service.List(ctx, sessionID, claims)
+	links, err := h.service.List(r.Context(), sessionID, userID)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -135,12 +132,9 @@ func (h TinylinkHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
+	claims := authcontext.Claims(r.Context())
 
-	claims := authcontext.Claims(ctx)
-
-	tl, err := h.service.Update(ctx, claims.UserID, req)
+	tl, err := h.service.Update(r.Context(), claims.UserID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrNotFound):
@@ -185,10 +179,7 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
-
-	tl, err := h.service.Create(ctx, userID, sessionID, req)
+	tl, err := h.service.Create(r.Context(), userID, sessionID, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, tinylink.ErrURLExists):
@@ -208,23 +199,20 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
-
 	alias := mux.Vars(r)["alias"]
 
 	var err error
 	var url string
 
 	isPrivateRoute := strings.HasPrefix(r.URL.Path, "/p/")
-	claims := authcontext.ClaimsFromCtx(ctx)
 
+	claims := authcontext.ClaimsFromCtx(r.Context())
 	if claims.UserID == "" && isPrivateRoute {
 		h.UnauthorizedResponse(w, r)
 		return
 	}
 
-	_, url, err = h.service.Redirect(ctx, &claims.UserID, alias, isPrivateRoute)
+	_, url, err = h.service.Redirect(r.Context(), &claims.UserID, alias, isPrivateRoute)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrNotFound):
@@ -240,10 +228,7 @@ func (h TinylinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h TinylinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
-
-	claims := authcontext.ClaimsFromCtx(ctx)
+	claims := authcontext.ClaimsFromCtx(r.Context())
 
 	alias := mux.Vars(r)["alias"]
 	if err := h.service.Delete(r.Context(), claims, alias); err != nil {

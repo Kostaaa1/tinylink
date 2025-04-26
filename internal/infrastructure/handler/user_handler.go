@@ -155,16 +155,15 @@ func (h UserHandler) HandleGoogleRedirect(w http.ResponseWriter, r *http.Request
 }
 
 func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
 	code := r.URL.Query().Get("code")
 
-	googleToken, err := h.oauth2Config.Exchange(ctx, code)
+	googleToken, err := h.oauth2Config.Exchange(r.Context(), code)
 	if err != nil {
 		h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 		return
 	}
 
-	client := h.oauth2Config.Client(ctx, googleToken)
+	client := h.oauth2Config.Client(r.Context(), googleToken)
 
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
@@ -180,7 +179,7 @@ func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	loggedUser, err := h.userService.HandleGoogleLogin(ctx, &googleUser)
+	loggedUser, err := h.userService.HandleGoogleLogin(r.Context(), &googleUser)
 	if err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
@@ -215,10 +214,7 @@ func (h UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
-
-	loggedUser, accessToken, refreshToken, err := h.userService.Login(ctx, input.Email, input.Password)
+	loggedUser, accessToken, refreshToken, err := h.userService.Login(r.Context(), input.Email, input.Password)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrInvalidCredentials):
@@ -256,10 +252,7 @@ func (h UserHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*5)
-	defer cancel()
-
-	userData, err := h.userService.Register(ctx, req)
+	userData, err := h.userService.Register(r.Context(), req)
 	if err != nil {
 		switch {
 		case errors.Is(err, user.ErrDuplicateEmail):

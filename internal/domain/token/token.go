@@ -68,12 +68,12 @@ func ClearRefreshToken(w http.ResponseWriter) {
 	})
 }
 
-func GetSessionID(r *http.Request) (string, error) {
+func GetSessionID(r *http.Request) (*string, error) {
 	token, err := r.Cookie(sessionKey)
-	if err != nil {
-		return "", err
+	if err != nil || token.Value == "" {
+		return nil, err
 	}
-	return token.Value, nil
+	return &token.Value, nil
 }
 
 // Retrieves or creates a new session ID with a 1-year expiration
@@ -108,19 +108,19 @@ func GetRefreshToken(r *http.Request) (string, error) {
 }
 
 // this sucks
-func GetAuthIdentifiers(w http.ResponseWriter, r *http.Request) (string, string, error) {
+func GetAuthIdentifiers(w http.ResponseWriter, r *http.Request) (*string, *string, error) {
 	claims, err := ClaimsFromRequest(r)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 	sessionID, err := GetOrCreateSessionID(w, r)
 	if err != nil {
-		return "", "", err
+		return nil, nil, err
 	}
 	if sessionID == "" && claims.UserID == "" {
-		return "", "", data.ErrUnauthenticated
+		return nil, nil, data.ErrUnauthenticated
 	}
-	return claims.UserID, sessionID, nil
+	return &claims.UserID, &sessionID, nil
 }
 
 func GenerateAccessToken(userID uint64) (string, Claims, error) {

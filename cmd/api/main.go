@@ -88,11 +88,11 @@ func main() {
 	tokenRepo := token.NewRedisTokenRepository(redisClient)
 	tokenService := token.NewService(tokenRepo)
 
-	userRepoProvider := user.NewRepositoryProvider(db)
-	userService := user.NewService(userRepoProvider, tokenRepo)
-
 	tinylinkProvider := tinylink.NewRepositoryProvider(db, redisClient)
 	tinylinkService := tinylink.NewService(tinylinkProvider)
+
+	userRepoProvider := user.NewRepositoryProvider(db)
+	userService := user.NewService(userRepoProvider, tokenRepo)
 
 	errHandler := errorhandler.New(logger)
 	userHandler := handler.NewUserHandler(userService, errHandler)

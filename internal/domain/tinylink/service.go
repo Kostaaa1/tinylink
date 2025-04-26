@@ -42,12 +42,12 @@ func NewService(provider provider) *Service {
 	}
 }
 
-func (s *Service) List(ctx context.Context, sessionID string, claims token.Claims) ([]*Tinylink, error) {
-	if claims.UserID != "" {
-		return s.db.ListUserLinks(ctx, claims.UserID)
+func (s *Service) List(ctx context.Context, sessionID, userID *string) ([]*Tinylink, error) {
+	if userID != nil {
+		return s.db.ListUserLinks(ctx, *userID)
 	}
-	if sessionID != "" {
-		return s.redis.ListUserLinks(ctx, sessionID)
+	if sessionID != nil {
+		return s.redis.ListUserLinks(ctx, *sessionID)
 	}
 	return nil, data.ErrUnauthenticated
 }
@@ -70,9 +70,9 @@ func (s *Service) validatePublicAlias(ctx context.Context, alias string) error {
 	return nil
 }
 
-func (s *Service) IsAliasValid(ctx context.Context, userID string, alias string, isPrivate bool) error {
-	if isPrivate {
-		exists, err := s.db.AliasExistsWithID(ctx, userID, alias)
+func (s *Service) IsAliasValid(ctx context.Context, userID *string, alias string, isPrivate bool) error {
+	if isPrivate && userID != nil {
+		exists, err := s.db.AliasExistsWithID(ctx, *userID, alias)
 		if err != nil {
 			return err
 		}
@@ -89,17 +89,16 @@ func (s *Service) IsAliasValid(ctx context.Context, userID string, alias string,
 	return nil
 }
 
-func (s *Service) Create(ctx context.Context, userID, sessionID string, req CreateTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Create(ctx context.Context, userID, sessionID *string, req CreateTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		URL:       req.URL,
-		UserID:    userID,
 		Alias:     req.Alias,
 		Private:   req.Private,
 		Domain:    req.Domain,
 		CreatedAt: time.Now().Unix(),
 	}
 
-	if userID == "" {
+	if userID == nil {
 		tl.Private = false
 	}
 
@@ -116,12 +115,13 @@ func (s *Service) Create(ctx context.Context, userID, sessionID string, req Crea
 	}
 
 	switch {
-	case userID != "":
+	case userID != nil:
+		tl.UserID = *userID
 		if err := s.db.Create(ctx, tl); err != nil {
 			return nil, err
 		}
-	case sessionID != "":
-		if err := s.redis.StoreBySessionID(ctx, sessionID, ToMap(tl)); err != nil {
+	case sessionID != nil:
+		if err := s.redis.StoreBySessionID(ctx, *sessionID, ToMap(tl)); err != nil {
 			return nil, err
 		}
 	}
@@ -145,8 +145,6 @@ func (s *Service) Update(ctx context.Context, userID string, req UpdateTinylinkR
 		tl.URL = *req.URL
 	}
 
-	// row ID
-	// alias
 	if !tl.Private {
 		if err := s.validatePublicAlias(ctx, tl.Alias); err != nil {
 			return nil, err
@@ -203,7 +201,7 @@ func (s *Service) Redirect(ctx context.Context, userID *string, alias string, is
 }
 
 // Happens when user registers but already had the tinylinks in redis
-func (s *Service) MigrateFromRedisToDB(ctx context.Context, userID, sessionID string) error {
+func (s *Service) MigrateLinksFromRedisToDB(ctx context.Context, userID, sessionID string) error {
 	links, err := s.redis.ListUserLinks(ctx, sessionID)
 	if err != nil {
 		return err

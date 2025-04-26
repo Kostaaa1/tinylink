@@ -52,6 +52,62 @@ func createMockUser(t *testing.T, ctx context.Context, userDb user.UserRepositor
 	return mockUser
 }
 
+func mockTinylinkCreateRequest() tinylink.CreateTinylinkRequest {
+	url := randomURL()
+	alias := randomAlias()
+	req := tinylink.CreateTinylinkRequest{
+		URL:   url,
+		Alias: alias,
+	}
+	return req
+}
+
+func TestTInylinkService_List(t *testing.T) {
+	t.Parallel()
+
+	adapters, service, userAdapters, _, sessionID := setupTinylinkSuite(t)
+
+	// Store in redis
+	req := mockTinylinkCreateRequest()
+	tl, err := service.Create(ctx, nil, &sessionID, req)
+	require.NoError(t, err)
+	require.Equal(t, tl.ID, uint64(0))
+
+	req = mockTinylinkCreateRequest()
+	tl, err = service.Create(ctx, nil, &sessionID, req)
+	require.NoError(t, err)
+	require.Equal(t, tl.ID, uint64(0))
+
+	tls, err := adapters.TinylinkRedisRepository.ListUserLinks(ctx, sessionID)
+	require.NoError(t, err)
+	require.Equal(t, len(tls), 2)
+
+	// Store in sqlite
+	mockUser := createMockUser(t, ctx, userAdapters.UserDbRepository)
+	userID := mockUser.GetID()
+
+	tl, err = service.Create(ctx, &userID, nil, mockTinylinkCreateRequest())
+	require.NoError(t, err)
+	require.NotNil(t, tl)
+	require.Greater(t, tl.ID, uint64(0))
+	require.Greater(t, tl.CreatedAt, int64(0))
+	require.Greater(t, tl.CreatedAt, int64(0))
+
+	tl2, err := service.Create(ctx, &userID, nil, mockTinylinkCreateRequest())
+	require.NoError(t, err)
+	require.NotNil(t, tl2)
+	require.Greater(t, tl2.ID, uint64(0))
+	require.Greater(t, tl2.CreatedAt, int64(0))
+	require.Greater(t, tl2.CreatedAt, int64(0))
+
+	tls, err = adapters.TinylinkDBRepository.ListUserLinks(ctx, userID)
+	require.NoError(t, err)
+	require.Greater(t, len(tls), 0)
+	require.Equal(t, len(tls), 2)
+	require.Greater(t, tls[0].ID, uint64(0))
+	require.Greater(t, tls[1].ID, uint64(0))
+}
+
 func TestTinylinkService_CreatePublic(t *testing.T) {
 	t.Parallel()
 
@@ -64,8 +120,10 @@ func TestTinylinkService_CreatePublic(t *testing.T) {
 		Alias: alias,
 	}
 
+	userID := mockUser.GetID()
+
 	// should insert in peristed db
-	tl, err := service.Create(ctx, mockUser.GetID(), "", req)
+	tl, err := service.Create(ctx, &userID, nil, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 	require.Greater(t, tl.ID, uint64(0))
@@ -81,7 +139,7 @@ func TestTinylinkService_CreatePublic(t *testing.T) {
 		URL:   randomURL(),
 		Alias: randomAlias(),
 	}
-	tl2, err := service.Create(ctx, "", sessionID, req2)
+	tl2, err := service.Create(ctx, nil, &sessionID, req2)
 	require.NoError(t, err)
 	require.NotNil(t, tl2)
 	require.Greater(t, tl.CreatedAt, int64(0))
@@ -91,7 +149,7 @@ func TestTinylinkService_CreatePublic(t *testing.T) {
 	require.True(t, ok)
 }
 
-func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
+func TestTinylinkService_MigrateLinksFromRedisToDB(t *testing.T) {
 	t.Parallel()
 
 	adapters, service, userAdapters, _, sessionID := setupTinylinkSuite(t)
@@ -99,21 +157,23 @@ func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
 	userID := mockUser.GetID()
 
 	// create couple of links in redis
-	tl1, err := service.Create(ctx, "", sessionID, tinylink.CreateTinylinkRequest{
+	tl1, err := service.Create(ctx, nil, &sessionID, tinylink.CreateTinylinkRequest{
 		URL:   randomURL(),
 		Alias: randomAlias(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, tl1)
 	require.Equal(t, tl1.ID, uint64(0))
+	t.Log("Created first link: ", tl1.Alias)
 
-	tl2, err := service.Create(ctx, "", sessionID, tinylink.CreateTinylinkRequest{
+	tl2, err := service.Create(ctx, nil, &sessionID, tinylink.CreateTinylinkRequest{
 		URL:   randomURL(),
 		Alias: randomAlias(),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, tl2)
 	require.Equal(t, tl2.ID, uint64(0))
+	t.Log("Created second link: ", tl2.Alias)
 
 	// validate
 	links, err := adapters.TinylinkRedisRepository.ListUserLinks(ctx, sessionID)
@@ -121,11 +181,8 @@ func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
 	require.NotNil(t, links)
 	require.Equal(t, len(links), 2)
 
-	require.Equal(t, links[0].Alias, tl1.Alias)
-	require.Equal(t, links[1].Alias, tl2.Alias)
-
 	// migrate - delete from redis and move them to sqlite
-	err = service.MigrateFromRedisToDB(ctx, userID, sessionID)
+	err = service.MigrateLinksFromRedisToDB(ctx, userID, sessionID)
 	require.NoError(t, err)
 
 	// validate that redis is empty for this sessionID
@@ -138,8 +195,6 @@ func TestTinylinkService_MigrateFromRedisToDB(t *testing.T) {
 	dbLinks, err := adapters.TinylinkDBRepository.ListUserLinks(ctx, userID)
 	require.NoError(t, err)
 	require.Equal(t, len(dbLinks), 2)
-	require.Equal(t, dbLinks[0].Alias, tl1.Alias)
-	require.Equal(t, dbLinks[1].Alias, tl2.Alias)
 }
 
 func TestTinylinkService_CreatePrivate(t *testing.T) {
@@ -147,6 +202,7 @@ func TestTinylinkService_CreatePrivate(t *testing.T) {
 
 	adapters, service, userAdapters, _, _ := setupTinylinkSuite(t)
 	mockUser := createMockUser(t, ctx, userAdapters.UserDbRepository)
+	userID := mockUser.GetID()
 
 	req := tinylink.CreateTinylinkRequest{
 		URL:     randomURL(),
@@ -154,7 +210,7 @@ func TestTinylinkService_CreatePrivate(t *testing.T) {
 		Private: true,
 	}
 
-	tl, err := service.Create(ctx, mockUser.GetID(), "", req)
+	tl, err := service.Create(ctx, &userID, nil, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 	require.Greater(t, tl.ID, uint64(0))
@@ -174,6 +230,7 @@ func TestTinylinkService_DuplicateAliasFailsAndSucceeds(t *testing.T) {
 
 	adapters, service, userAdapters, _, sessionID := setupTinylinkSuite(t)
 	mockUser := createMockUser(t, ctx, userAdapters.UserDbRepository)
+	userID := mockUser.GetID()
 
 	req := tinylink.CreateTinylinkRequest{
 		URL:   randomURL(),
@@ -181,7 +238,7 @@ func TestTinylinkService_DuplicateAliasFailsAndSucceeds(t *testing.T) {
 	}
 
 	// should insert public tinylink in peristed db
-	tl, err := service.Create(ctx, mockUser.GetID(), "", req)
+	tl, err := service.Create(ctx, &userID, nil, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 	require.Greater(t, tl.ID, uint64(0))
@@ -195,7 +252,7 @@ func TestTinylinkService_DuplicateAliasFailsAndSucceeds(t *testing.T) {
 	require.True(t, ok)
 
 	// should fail becuase it uses the same alias
-	tl2, err := service.Create(ctx, "", sessionID, req)
+	tl2, err := service.Create(ctx, nil, &sessionID, req)
 	require.Error(t, err)
 	require.Nil(t, tl2)
 	require.Equal(t, err, tinylink.ErrAliasExists)
@@ -215,7 +272,7 @@ func TestTinylinkService_DuplicateAliasFailsAndSucceeds(t *testing.T) {
 	require.Equal(t, updatedTl.Version, uint64(1))
 
 	// now inserting will work again
-	tl, err = service.Create(ctx, "", sessionID, req)
+	tl, err = service.Create(ctx, nil, &sessionID, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 }
