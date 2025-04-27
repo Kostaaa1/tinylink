@@ -33,7 +33,7 @@ func (mw Auth) Middleware(next http.Handler) http.Handler {
 
 		accessToken := strings.TrimPrefix(bearer, "Bearer ")
 
-		claims, err := token.VerifyAccessToken(accessToken)
+		claims, err := token.ValidateAccessToken(accessToken)
 		if err == nil {
 			r = r.WithContext(authcontext.WithClaims(r.Context(), claims))
 			next.ServeHTTP(w, r)

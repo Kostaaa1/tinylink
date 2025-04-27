@@ -104,6 +104,8 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*User, err
 		return nil, err
 	}
 
+	// migrate user tinylinks from redis to db (if they exist by session ID)
+
 	return userData, nil
 }
 

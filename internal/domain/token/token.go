@@ -15,12 +15,13 @@ import (
 )
 
 var (
-	SessionTTL             = time.Hour * 24 * 365
-	sessionKey             = "tinylink_session"
-	refreshTokenKey        = "refresh_token"
-	jwtSecret              = []byte(os.Getenv("JWT_SECRET_KEY"))
-	accessTokenDuration    = 15 * time.Minute
-	refreshTokenDuration   = 7 * 24 * time.Hour
+	SessionTTL           = time.Hour * 24 * 365
+	sessionKey           = "tinylink_session"
+	refreshTokenKey      = "refresh_token"
+	jwtSecret            = []byte(os.Getenv("JWT_SECRET_KEY"))
+	accessTokenDuration  = 15 * time.Minute
+	refreshTokenDuration = 7 * 24 * time.Hour
+
 	ErrAccessTokenExpired  = errors.New("access token expired")
 	ErrRefreshTokenExpired = errors.New("refresh token expired")
 	ErrTokenNotValid       = errors.New("token user id does not match provided user id")
@@ -39,7 +40,7 @@ func ClaimsFromRequest(r *http.Request) (Claims, error) {
 	if token == "" {
 		return Claims{}, nil
 	}
-	return VerifyAccessToken(token)
+	return ValidateAccessToken(token)
 }
 
 func GenerateRefreshToken() string {
@@ -59,6 +60,7 @@ func SetHeaderAndCookie(w http.ResponseWriter, refreshToken, accessToken string)
 	})
 }
 
+// when logging out
 func ClearRefreshToken(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:   refreshTokenKey,
@@ -107,20 +109,32 @@ func GetRefreshToken(r *http.Request) (string, error) {
 	return token.Value, nil
 }
 
-// this sucks
-func GetAuthIdentifiers(w http.ResponseWriter, r *http.Request) (*string, *string, error) {
+// userID can be null if access token is not present or expired. if session is found in cookie, it will be used. Otherwise, a new session will be created.
+func GetAuthIdentifiersWithPersistedSession(w http.ResponseWriter, r *http.Request) (*string, string, error) {
+	claims, err := ClaimsFromRequest(r)
+	if err != nil {
+		return nil, "", err
+	}
+	sessionID, err := GetOrCreateSessionID(w, r)
+	if err != nil {
+		return nil, "", err
+	}
+	return &claims.UserID, sessionID, nil
+}
+
+func GetAuthIdentifiers(r *http.Request) (*string, *string, error) {
 	claims, err := ClaimsFromRequest(r)
 	if err != nil {
 		return nil, nil, err
 	}
-	sessionID, err := GetOrCreateSessionID(w, r)
+	sessionID, err := GetSessionID(r)
 	if err != nil {
 		return nil, nil, err
 	}
-	if sessionID == "" && claims.UserID == "" {
+	if sessionID == nil && claims.UserID == "" {
 		return nil, nil, data.ErrUnauthenticated
 	}
-	return &claims.UserID, &sessionID, nil
+	return &claims.UserID, sessionID, nil
 }
 
 func GenerateAccessToken(userID uint64) (string, Claims, error) {
@@ -145,7 +159,7 @@ func GenerateAccessToken(userID uint64) (string, Claims, error) {
 	return signed, claims, nil
 }
 
-func VerifyAccessToken(tokenStr string) (Claims, error) {
+func ValidateAccessToken(tokenStr string) (Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")

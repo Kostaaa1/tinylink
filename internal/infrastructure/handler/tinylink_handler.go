@@ -35,7 +35,7 @@ type TinylinkDTO struct {
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
-func toDTOList(links []*tinylink.Tinylink) []TinylinkDTO {
+func toDTOSlice(links []*tinylink.Tinylink) []TinylinkDTO {
 	tl := make([]TinylinkDTO, len(links))
 	for i, link := range links {
 		tl[i] = toDTO(link)
@@ -114,7 +114,7 @@ func (h TinylinkHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := writeJSON(w, http.StatusOK, toDTOList(links), nil); err != nil {
+	if err := writeJSON(w, http.StatusOK, toDTOSlice(links), nil); err != nil {
 		h.ServerErrorResponse(w, r, err)
 	}
 }
@@ -168,18 +168,18 @@ func (h TinylinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, sessionID, err := token.GetAuthIdentifiers(w, r)
+	claims, err := token.ClaimsFromRequest(r)
 	if err != nil {
-		switch {
-		case errors.Is(err, data.ErrUnauthenticated):
-			h.UnauthorizedResponse(w, r)
-		default:
-			h.ServerErrorResponse(w, r, err)
-		}
+		h.ServerErrorResponse(w, r, err)
+		return
+	}
+	session, err := token.GetOrCreateSessionID(w, r)
+	if err != nil {
+		h.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	tl, err := h.service.Create(r.Context(), userID, sessionID, req)
+	tl, err := h.service.Create(r.Context(), &claims.UserID, session, req)
 	if err != nil {
 		switch {
 		case errors.Is(err, tinylink.ErrURLExists):

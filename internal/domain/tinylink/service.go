@@ -89,7 +89,7 @@ func (s *Service) IsAliasValid(ctx context.Context, userID *string, alias string
 	return nil
 }
 
-func (s *Service) Create(ctx context.Context, userID, sessionID *string, req CreateTinylinkRequest) (*Tinylink, error) {
+func (s *Service) Create(ctx context.Context, userID *string, sessionID string, req CreateTinylinkRequest) (*Tinylink, error) {
 	tl := &Tinylink{
 		URL:       req.URL,
 		Alias:     req.Alias,
@@ -120,8 +120,8 @@ func (s *Service) Create(ctx context.Context, userID, sessionID *string, req Cre
 		if err := s.db.Create(ctx, tl); err != nil {
 			return nil, err
 		}
-	case sessionID != nil:
-		if err := s.redis.StoreBySessionID(ctx, *sessionID, ToMap(tl)); err != nil {
+	default:
+		if err := s.redis.StoreBySessionID(ctx, sessionID, ToMap(tl)); err != nil {
 			return nil, err
 		}
 	}

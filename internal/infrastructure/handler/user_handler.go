@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -99,12 +97,9 @@ func (h UserHandler) RegisterRoutes(r *mux.Router, auth middleware.Auth) {
 // }
 
 func (h UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
+	claims := authcontext.ClaimsFromCtx(r.Context())
 
-	claims := authcontext.ClaimsFromCtx(ctx)
-
-	if err := h.userService.Logout(ctx, claims.UserID); err != nil {
+	if err := h.userService.Logout(r.Context(), claims.UserID); err != nil {
 		h.ServerErrorResponse(w, r, err)
 		return
 	}
@@ -130,10 +125,7 @@ func (h UserHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	if err := h.userService.ChangePassword(ctx, input.Password); err != nil {
+	if err := h.userService.ChangePassword(r.Context(), input.Password); err != nil {
 		if errors.Is(err, data.ErrNotFound) {
 			h.NotFoundResponse(w, r)
 			return
@@ -173,8 +165,7 @@ func (h UserHandler) HandleGoogleCallback(w http.ResponseWriter, r *http.Request
 	defer resp.Body.Close()
 
 	var googleUser user.GoogleUser
-	err = json.NewDecoder(resp.Body).Decode(&googleUser)
-	if err != nil {
+	if err := readJSON(r, &googleUser); err != nil {
 		h.ServerErrorResponse(w, r, fmt.Errorf("failed to exchange token: %v", err))
 		return
 	}
