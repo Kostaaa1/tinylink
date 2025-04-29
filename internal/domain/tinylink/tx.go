@@ -28,6 +28,7 @@ func (p *RepositoryProvider) Adapters() Adapters {
 			TinylinkRedisRepository: &TinylinkRedisRepository{client: p.client},
 		},
 	}
+
 }
 
 func (p *RepositoryProvider) WithTransaction(txFunc func(dbAdapters DBAdapters) error) error {
