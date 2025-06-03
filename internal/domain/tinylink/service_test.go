@@ -69,12 +69,12 @@ func TestTInylinkService_List(t *testing.T) {
 
 	// Store in redis
 	req := mockTinylinkCreateRequest()
-	tl, err := service.Create(ctx, nil, &sessionID, req)
+	tl, err := service.Create(ctx, nil, sessionID, req)
 	require.NoError(t, err)
 	require.Equal(t, tl.ID, uint64(0))
 
 	req = mockTinylinkCreateRequest()
-	tl, err = service.Create(ctx, nil, &sessionID, req)
+	tl, err = service.Create(ctx, nil, sessionID, req)
 	require.NoError(t, err)
 	require.Equal(t, tl.ID, uint64(0))
 
@@ -139,7 +139,7 @@ func TestTinylinkService_CreatePublic(t *testing.T) {
 		URL:   randomURL(),
 		Alias: randomAlias(),
 	}
-	tl2, err := service.Create(ctx, nil, &sessionID, req2)
+	tl2, err := service.Create(ctx, nil, sessionID, req2)
 	require.NoError(t, err)
 	require.NotNil(t, tl2)
 	require.Greater(t, tl.CreatedAt, int64(0))
@@ -157,7 +157,7 @@ func TestTinylinkService_MigrateLinksFromRedisToDB(t *testing.T) {
 	userID := mockUser.GetID()
 
 	// create couple of links in redis
-	tl1, err := service.Create(ctx, nil, &sessionID, tinylink.CreateTinylinkRequest{
+	tl1, err := service.Create(ctx, nil, sessionID, tinylink.CreateTinylinkRequest{
 		URL:   randomURL(),
 		Alias: randomAlias(),
 	})
@@ -166,7 +166,7 @@ func TestTinylinkService_MigrateLinksFromRedisToDB(t *testing.T) {
 	require.Equal(t, tl1.ID, uint64(0))
 	t.Log("Created first link: ", tl1.Alias)
 
-	tl2, err := service.Create(ctx, nil, &sessionID, tinylink.CreateTinylinkRequest{
+	tl2, err := service.Create(ctx, nil, sessionID, tinylink.CreateTinylinkRequest{
 		URL:   randomURL(),
 		Alias: randomAlias(),
 	})
@@ -252,7 +252,7 @@ func TestTinylinkService_DuplicateAliasFailsAndSucceeds(t *testing.T) {
 	require.True(t, ok)
 
 	// should fail becuase it uses the same alias
-	tl2, err := service.Create(ctx, nil, &sessionID, req)
+	tl2, err := service.Create(ctx, nil, sessionID, req)
 	require.Error(t, err)
 	require.Nil(t, tl2)
 	require.Equal(t, err, tinylink.ErrAliasExists)
@@ -272,7 +272,7 @@ func TestTinylinkService_DuplicateAliasFailsAndSucceeds(t *testing.T) {
 	require.Equal(t, updatedTl.Version, uint64(1))
 
 	// now inserting will work again
-	tl, err = service.Create(ctx, nil, &sessionID, req)
+	tl, err = service.Create(ctx, nil, sessionID, req)
 	require.NoError(t, err)
 	require.NotNil(t, tl)
 }
