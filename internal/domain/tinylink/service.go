@@ -160,41 +160,27 @@ func (s *Service) Update(ctx context.Context, userID string, req UpdateTinylinkR
 }
 
 func (s *Service) Redirect(ctx context.Context, userID *string, alias string, isPrivate bool) (uint64, string, error) {
-	var rowID uint64
-	var url string
-	var err error
-
-	// check cache first, if found return
-	rowID, url, err = s.redis.RedirectURL(ctx, alias)
+	rowID, url, err := s.redis.RedirectURL(ctx, alias)
 	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return 0, "", err
 	}
 
-	if url == "" {
-		err = s.provider.WithTransaction(func(dbAdapters DBAdapters) error {
-			// based on route (/p/ or public), GET the URL by alias/alias-user-id.
-			if isPrivate && *userID != "" {
-				if rowID, url, err = dbAdapters.TinylinkDBRepository.RedirectURLByID(ctx, *userID, alias); err != nil {
-					return err
-				}
-			} else {
-				if rowID, url, err = dbAdapters.TinylinkDBRepository.RedirectURL(ctx, alias); err != nil {
-					return err
-				}
-			}
-			// If found, insert it into redis cache for faster redirects
-			if url != "" {
-				if err := s.redis.CacheURL(ctx, rowID, alias, url); err != nil {
-					return err
-				}
-				return nil
-			}
-			return data.ErrNotFound
-		})
+	if url != "" {
+		return rowID, url, nil
+	}
+
+	if isPrivate && *userID != "" {
+		rowID, url, err = s.db.RedirectURLByID(ctx, *userID, alias)
+	} else {
+		rowID, url, err = s.db.RedirectURL(ctx, alias)
 	}
 
 	if err != nil {
 		return 0, "", err
+	}
+
+	if url == "" {
+		return 0, "", data.ErrNotFound
 	}
 
 	return rowID, url, nil

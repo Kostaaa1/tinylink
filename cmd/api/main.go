@@ -66,10 +66,8 @@ func setupLogger(w io.Writer, conf *config.Config) *slog.Logger {
 	} else {
 		logHandler = slog.NewJSONHandler(w, &slog.HandlerOptions{Level: slog.LevelError})
 	}
-
 	logger := slog.New(logHandler)
 	slog.SetDefault(logger)
-
 	return logger
 }
 
