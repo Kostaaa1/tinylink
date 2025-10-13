@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS google_users_data;
+DROP TABLE IF EXISTS users;

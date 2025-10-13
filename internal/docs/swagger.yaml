@@ -1,0 +1,67 @@
+basePath: /
+definitions:
+  jsonutil.Response:
+    properties:
+      code:
+        type: integer
+      omitempty: {}
+    type: object
+  tinylink.Tinylink:
+    properties:
+      alias:
+        type: string
+      created_at:
+        type: string
+      domain:
+        type: string
+      expiration:
+        type: string
+      guest_id:
+        type: string
+      id:
+        type: integer
+      private:
+        type: boolean
+      updated_at:
+        type: string
+      url:
+        type: string
+      user_id:
+        type: integer
+      version:
+        type: integer
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: API documentation for Tinylink
+  title: TinyLink API
+  version: "1.0"
+paths:
+  /tinylink/list:
+    get:
+      description: Retrieves a list of Tinylinks for the authenticated user. This
+        is protected route. Access tokey is needed
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/tinylink.Tinylink'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/jsonutil.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/jsonutil.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: List Tinylinks
+      tags:
+      - Tinylink
+swagger: "2.0"
