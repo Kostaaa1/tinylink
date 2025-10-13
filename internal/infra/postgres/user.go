@@ -7,21 +7,20 @@ import (
 	"fmt"
 
 	"github.com/Kostaaa1/tinylink/core/transactor"
-	"github.com/Kostaaa1/tinylink/core/transactor/adapters"
 	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
 	"github.com/jackc/pgx/v5"
 )
 
 type UserRepository struct {
-	db adapters.PgxQuerier
+	db transactor.PgxQuerier
 }
 
-func NewUserRepository(db adapters.PgxQuerier) user.Repository {
+func NewUserRepository(db transactor.PgxQuerier) user.Repository {
 	return &UserRepository{db: db}
 }
 
-func (p *UserRepository) WithRepositoryTx(tx transactor.Tx) user.Repository {
+func (p *UserRepository) WithTx(tx transactor.Tx) user.Repository {
 	pgxTx, ok := tx.(pgx.Tx)
 	if !ok {
 		panic("tx does not match the pgx.Tx")

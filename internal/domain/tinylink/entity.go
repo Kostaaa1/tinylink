@@ -7,7 +7,9 @@ import (
 )
 
 var (
-	ErrAliasExists = errors.New("alias already exists")
+	ErrAliasNotProvided = errors.New("alias not provided")
+	ErrAliasExists      = errors.New("alias already exists")
+	defaultTTL          = time.Hour
 )
 
 type Tinylink struct {

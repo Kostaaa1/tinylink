@@ -13,7 +13,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id uint64) (*User, error)
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, userID string) error
-	WithRepositoryTx(tx transactor.Tx) Repository
+	WithTx(tx transactor.Tx) Repository
 	////////////////////////////////////////////////////////////////////////////////////
 	// GetByID(ctx context.Context, userID string) (*User, error)
 }

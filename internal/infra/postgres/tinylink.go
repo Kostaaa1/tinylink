@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Kostaaa1/tinylink/core/transactor"
-	"github.com/Kostaaa1/tinylink/core/transactor/adapters"
 	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/jackc/pgx/v5"
@@ -14,14 +13,14 @@ import (
 )
 
 type TinylinkRepository struct {
-	db adapters.PgxQuerier
+	db transactor.PgxQuerier
 }
 
-func NewTinylinkRepository(db adapters.PgxQuerier) tinylink.DbRepository {
+func NewTinylinkRepository(db transactor.PgxQuerier) tinylink.DbRepository {
 	return &TinylinkRepository{db: db}
 }
 
-func (p *TinylinkRepository) WithRepositoryTx(tx transactor.Tx) tinylink.DbRepository {
+func (p *TinylinkRepository) WithTx(tx transactor.Tx) tinylink.DbRepository {
 	pgxTx, ok := tx.(pgx.Tx)
 	if !ok {
 		panic("tx does not match type of pgx.Tx")
@@ -36,6 +35,7 @@ func (r *TinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) 
 			($1, $2, $3, $4, $5, $6, $7)
 			RETURNING id, created_at, version, updated_at, domain, expiration, guest_id
 		`
+
 	args := []interface{}{tl.Alias, tl.URL, tl.Private, tl.UserID, tl.GuestUUID, tl.Domain, tl.Expiration}
 
 	err := r.db.QueryRow(ctx, query, args...).Scan(
@@ -47,8 +47,8 @@ func (r *TinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) 
 		&tl.Expiration,
 		&tl.GuestUUID,
 	)
+
 	if err != nil {
-		// handle chk_user_or_guest_id_not_null constraint
 		if isAliasUniqueErr(err) {
 			return tinylink.ErrAliasExists
 		}
@@ -179,8 +179,9 @@ func (r *TinylinkRepository) ListByUserID(ctx context.Context, userID uint64) ([
 	return tinylinks, nil
 }
 
-func (r *TinylinkRepository) Redirect(ctx context.Context, alias string, userID *uint64) (*tinylink.RedirectValue, error) {
+func (r *TinylinkRepository) Redirect(ctx context.Context, userID *uint64, alias string) (*tinylink.RedirectValue, error) {
 	query := `SELECT id, url FROM tinylinks WHERE alias = $1 AND (user_id = $2 OR $2 IS NULL)`
+
 	var redirect tinylink.RedirectValue
 	err := r.db.QueryRow(ctx, query, alias, userID).Scan(&redirect.RowID, &redirect.URL)
 

@@ -15,7 +15,7 @@ type TxBeginner interface {
 
 // Transactor is an interface for types that can work with transactions
 type Transactor[T any] interface {
-	WithRepositoryTx(tx Tx) T
+	WithTx(tx Tx) T
 }
 
 // Provider is a generic provider that works with any database implementation
@@ -36,7 +36,7 @@ func (p *Provider[T]) WithTx(ctx context.Context, txFunc func(repos T) error) er
 		return err
 	}
 
-	repos := p.repos.WithRepositoryTx(tx)
+	repos := p.repos.WithTx(tx)
 
 	if err := txFunc(repos); err != nil {
 		_ = tx.Rollback(ctx)

@@ -4,43 +4,37 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Kostaaa1/tinylink/core/transactor"
 	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/auth"
 )
 
-type Service struct {
-	repo     DbRepository
-	cache    RedisRepository
-	provider *transactor.Provider[DbRepository]
-}
-
 type CreateTinylinkParams struct {
-	URL     string  `json:"url"`
-	Alias   *string `json:"alias"`
-	Domain  *string `json:"domain,omitempty"`
-	Private bool    `json:"private"`
-	// they come from context/cookie
+	URL       string  `json:"url"`
+	Alias     *string `json:"alias"`
+	Domain    *string `json:"domain,omitempty"`
+	Private   bool    `json:"private"`
 	UserID    *uint64
 	GuestUUID string
 }
 
 type UpdateTinylinkParams struct {
-	ID  uint64  `json:"id"`
-	URL *string `json:"url"`
-	// only authenticated users can update/delete
+	ID      uint64  `json:"id"`
+	URL     *string `json:"url"`
 	UserID  uint64  `json:"user_id"`
 	Alias   *string `json:"alias"`
 	Domain  *string `json:"domain,omitempty"`
 	Private bool    `json:"private"`
 }
 
-func NewService(
-	provider *transactor.Provider[DbRepository],
-	redis RedisRepository,
-) *Service {
-	repo := provider.Repos()
-	return &Service{provider: provider, repo: repo, cache: redis}
+type Service struct {
+	// repo     DbRepository
+	// provider *transactor.Provider[DbRepository]
+	cache CacheRepository
+	repo  DbRepository
+}
+
+func NewService(dbRepo DbRepository, cacheRepo CacheRepository) *Service {
+	return &Service{repo: dbRepo, cache: cacheRepo}
 }
 
 func (s *Service) List(ctx context.Context, userCtx auth.UserContext) ([]*Tinylink, error) {
@@ -116,21 +110,44 @@ func (s *Service) Redirect(ctx context.Context, userID *uint64, alias string) (u
 		return 0, "", err
 	}
 
-	if val.URL != "" && val.RowID > 0 {
+	if err == nil && val.URL != "" && val.RowID > 0 {
 		return val.RowID, val.URL, nil
 	}
 
-	val, err = s.repo.Redirect(ctx, alias, userID)
+	val, err = s.repo.Redirect(ctx, userID, alias)
 	if err != nil {
 		return 0, "", err
 	}
 
-	// cache it - add hit count - implement worker pool
 	if val.URL == "" {
 		return 0, "", constants.ErrNotFound
 	}
 
-	// implement some logic to collect metrics and analysis when redirect happens. Use something like rabitMQ, kafka, redis pub/sub, or even my own event pool. This should not impact performance in any way.
-
 	return val.RowID, val.URL, nil
+
+	// implement some logic to collect metrics and analysis when redirect happens. Use something like rabitMQ, kafka, redis pub/sub, or even my own event pool. This should not impact performance in any way.
+	// cache it - add hit count - implement worker pool
+
+	// err = s.cache.Cache(ctx, RedirectValue{
+	// 	RowID: val.RowID,
+	// 	Alias: val.Alias,
+	// 	URL:   val.URL,
+	// }, defaultTTL)
+
+	// if err != nil {
+	// 	return 0, "", err
+	// }
 }
+
+// func (s *Service) Redirect(ctx context.Context, userID *uint64, alias string) (uint64, string, error) {
+// 	val, err := s.repo.Redirect(ctx, alias, userID)
+// 	if err != nil {
+// 		return 0, "", err
+// 	}
+
+// 	if val.URL == "" {
+// 		return 0, "", constants.ErrNotFound
+// 	}
+
+// 	return val.RowID, val.URL, nil
+// }

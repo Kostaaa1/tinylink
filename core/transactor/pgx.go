@@ -1,9 +1,8 @@
-package adapters
+package transactor
 
 import (
 	"context"
 
-	"github.com/Kostaaa1/tinylink/core/transactor"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,12 +14,12 @@ type PgxQuerier interface {
 	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
 }
 
-type PgxProvider[T transactor.Transactor[T]] struct {
+type PgxProvider[T Transactor[T]] struct {
 	repos      T
-	txBeginner transactor.TxBeginner
+	txBeginner TxBeginner
 }
 
-func NewPgxProvider[T transactor.Transactor[T]](plainRepos T, txBeginner transactor.TxBeginner) *PgxProvider[T] {
+func NewPgxProvider[T Transactor[T]](plainRepos T, txBeginner TxBeginner) *PgxProvider[T] {
 	return &PgxProvider[T]{plainRepos, txBeginner}
 }
 
@@ -28,11 +27,11 @@ type pgxPoolAdapter struct {
 	db *pgxpool.Pool
 }
 
-func WithPgxPool(pool *pgxpool.Pool) transactor.TxBeginner {
+func WithPgxPool(pool *pgxpool.Pool) TxBeginner {
 	return &pgxPoolAdapter{db: pool}
 }
 
-func (a *pgxPoolAdapter) Begin(ctx context.Context) (transactor.Tx, error) {
+func (a *pgxPoolAdapter) Begin(ctx context.Context) (Tx, error) {
 	tx, err := a.db.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -52,7 +51,7 @@ func (p *PgxProvider[T]) WithTx(ctx context.Context, txFunc func(repos T) error)
 		panic("interface is not implemented")
 	}
 
-	repos := p.Repos().WithRepositoryTx(pgxTx)
+	repos := p.Repos().WithTx(pgxTx)
 
 	if err := txFunc(repos); err != nil {
 		_ = tx.Rollback(ctx)

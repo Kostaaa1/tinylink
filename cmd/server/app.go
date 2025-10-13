@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Kostaaa1/tinylink/core/transactor"
-	"github.com/Kostaaa1/tinylink/core/transactor/adapters"
 	tinylinkHandler "github.com/Kostaaa1/tinylink/internal/api/tinylink"
 	userHandler "github.com/Kostaaa1/tinylink/internal/api/user"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
@@ -68,28 +67,28 @@ func (a *application) serve() error {
 }
 
 func (a *application) registerUsers(
-	db *pgxpool.Pool,
+	pool *pgxpool.Pool,
 	tokenRepo token.Repository,
 	errHandler errhandler.ErrorHandler,
 	authMW mux.MiddlewareFunc,
 ) {
-	userRepo := postgres.NewUserRepository(db)
-	userProvider := transactor.NewProvider(userRepo, adapters.WithPgxPool(db))
+	userRepo := postgres.NewUserRepository(pool)
+	userProvider := transactor.NewProvider(userRepo, transactor.WithPgxPool(pool))
 	userService := user.NewService(userRepo, tokenRepo, userProvider)
 	userHandler := userHandler.NewUserHandler(userService, errHandler, a.log)
 	userHandler.RegisterRoutes(a.router, authMW)
 }
 
 func (a *application) registerTinylink(
-	db *pgxpool.Pool,
+	pool *pgxpool.Pool,
 	redisClient *goredis.Client,
 	errHandler errhandler.ErrorHandler,
 	authMW mux.MiddlewareFunc,
 ) {
-	tlRepo := postgres.NewTinylinkRepository(db)
+	tlRepo := postgres.NewTinylinkRepository(pool)
 	tlCacheRepo := redis.NewTinylinkRepository(redisClient)
-	tlProvider := transactor.NewProvider(tlRepo, adapters.WithPgxPool(db))
-	tlService := tinylink.NewService(tlProvider, tlCacheRepo)
+	tlProvider := transactor.NewProvider(tlRepo, transactor.WithPgxPool(pool))
+	tlService := tinylink.NewService(tlProvider.Repos(), tlCacheRepo)
 	tlHandler := tinylinkHandler.NewTinylinkHandler(tlService, errHandler, a.log)
 	tlHandler.RegisterRoutes(a.router, authMW)
 }

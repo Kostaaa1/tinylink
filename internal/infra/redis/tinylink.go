@@ -70,29 +70,11 @@ func (r *TinylinkRepository) Cache(ctx context.Context, val tinylink.RedirectVal
 
 	pipe := r.client.Pipeline()
 	pipe.HSet(ctx, key, cacheVal)
+	// always reset ttl
 	pipe.Expire(ctx, key, ttl)
 	_, err := pipe.Exec(ctx)
 
 	return err
-}
-
-func (r *TinylinkRepository) AliasValid(ctx context.Context, alias string, uuid string) (bool, error) {
-	keys, _ := r.client.Keys(ctx, "alias:*").Result()
-	fmt.Println("KEYS: ", keys)
-
-	pubKey := fmt.Sprintf("alias:public:%s", alias)
-	pubEx, err := r.client.Exists(ctx, pubKey).Result()
-	if err != nil {
-		return false, err
-	}
-
-	privKey := fmt.Sprintf("alias:private:%s:%s", uuid, alias)
-	privEx, err := r.client.Exists(ctx, privKey).Result()
-	if err != nil {
-		return false, err
-	}
-
-	return pubEx == 0 && privEx == 0, nil
 }
 
 func (r *TinylinkRepository) Save(
@@ -165,3 +147,22 @@ func (r *TinylinkRepository) List(ctx context.Context, uuid string) ([]*tinylink
 
 	return links, nil
 }
+
+// func (r *TinylinkRepository) AliasValid(ctx context.Context, alias string, uuid string) (bool, error) {
+// 	keys, _ := r.client.Keys(ctx, "alias:*").Result()
+// 	fmt.Println("KEYS: ", keys)
+
+// 	pubKey := fmt.Sprintf("alias:public:%s", alias)
+// 	pubEx, err := r.client.Exists(ctx, pubKey).Result()
+// 	if err != nil {
+// 		return false, err
+// 	}
+
+// 	privKey := fmt.Sprintf("alias:private:%s:%s", uuid, alias)
+// 	privEx, err := r.client.Exists(ctx, privKey).Result()
+// 	if err != nil {
+// 		return false, err
+// 	}
+
+// 	return pubEx == 0 && privEx == 0, nil
+// }
