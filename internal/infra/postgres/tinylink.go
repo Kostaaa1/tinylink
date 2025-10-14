@@ -16,6 +16,8 @@ type TinylinkRepository struct {
 	db transactor.PgxQuerier
 }
 
+var _ tinylink.DbRepository = (*TinylinkRepository)(nil)
+
 func NewTinylinkRepository(db transactor.PgxQuerier) tinylink.DbRepository {
 	return &TinylinkRepository{db: db}
 }

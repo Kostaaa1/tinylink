@@ -45,6 +45,11 @@ func (s *Service) List(ctx context.Context, userCtx auth.UserContext) ([]*Tinyli
 }
 
 func (s *Service) Create(ctx context.Context, params CreateTinylinkParams) (*Tinylink, error) {
+	// guestUUID always needs to be passed,
+	if len(params.GuestUUID) == 0 {
+		return nil, errors.Join(constants.ErrUnauthenticated, errors.New("missing guestUUID"))
+	}
+
 	if params.UserID == nil && params.Private {
 		return nil, constants.ErrUnauthenticated
 	}
@@ -53,20 +58,19 @@ func (s *Service) Create(ctx context.Context, params CreateTinylinkParams) (*Tin
 
 	if params.Alias != nil {
 		tl.Alias = *params.Alias
-	}
-	if params.Domain != nil {
-		tl.Domain = *params.Domain
-	}
-	if params.UserID != nil {
-		tl.UserID = params.UserID
-	}
-
-	if tl.Alias == "" {
+	} else {
 		alias, err := s.cache.GenerateAlias(ctx)
 		if err != nil {
 			return nil, err
 		}
 		tl.Alias = alias
+	}
+
+	if params.Domain != nil {
+		tl.Domain = *params.Domain
+	}
+	if params.UserID != nil {
+		tl.UserID = params.UserID
 	}
 
 	if err := s.repo.Insert(ctx, tl); err != nil {
@@ -106,6 +110,7 @@ func (s *Service) Delete(ctx context.Context, userID uint64, alias string) error
 
 func (s *Service) Redirect(ctx context.Context, userID *uint64, alias string) (uint64, string, error) {
 	val, err := s.cache.Redirect(ctx, alias)
+
 	if err != nil && !errors.Is(err, constants.ErrNotFound) {
 		return 0, "", err
 	}

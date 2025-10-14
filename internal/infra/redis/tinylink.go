@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/redis/go-redis/v9"
 )
@@ -45,12 +46,25 @@ func (r *TinylinkRepository) Redirect(ctx context.Context, alias string) (*tinyl
 
 	value, err := r.client.HGetAll(ctx, key).Result()
 	if err != nil {
+		switch err {
+		case redis.Nil:
+			return nil, constants.ErrNotFound
+		}
 		return nil, err
 	}
 
-	rowID, err := strconv.ParseUint(value["row_id"], 10, 64)
+	if len(value) == 0 {
+		return nil, fmt.Errorf("no cache key found for alias: %s", alias)
+	}
+
+	rowIDStr, ok := value["row_id"]
+	if !ok || rowIDStr == "" {
+		return nil, fmt.Errorf("missing row_id for alias: %s", alias)
+	}
+
+	rowID, err := strconv.ParseUint(rowIDStr, 10, 64)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parseUint failed for row_id: %s", rowIDStr)
 	}
 
 	return &tinylink.RedirectValue{

@@ -4,24 +4,18 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	mocks "github.com/Kostaaa1/tinylink/internal/mocks/tinylink"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-type testCase struct {
-	mockDbReturn     []interface{}
-	mockCacheReturn  []interface{}
-	assertFn         func(t *testing.T, rowID uint64, url string, err error)
-	repoExpectations func(t *testing.T, mdr *mocks.MockDbRepository, mcr *mocks.MockCacheRepository)
-}
 
 // fuck yea
 func TestTinylinkService_Redirect(t *testing.T) {
 	userID := (*uint64)(nil)
-
 	alias := "abc123"
 	expected := &tinylink.RedirectValue{
 		RowID: 42,
@@ -30,6 +24,13 @@ func TestTinylinkService_Redirect(t *testing.T) {
 	}
 
 	unknownErr := errors.New("some random unknown error from cache repo")
+
+	type testCase struct {
+		mockDbReturn     []interface{}
+		mockCacheReturn  []interface{}
+		assertFn         func(t *testing.T, rowID uint64, url string, err error)
+		repoExpectations func(t *testing.T, mdr *mocks.MockDbRepository, mcr *mocks.MockCacheRepository)
+	}
 
 	testCases := map[string]testCase{
 		"redirect value from cache": {
@@ -88,7 +89,6 @@ func TestTinylinkService_Redirect(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
 			ctx := context.Background()
 
 			mockDb := new(mocks.MockDbRepository)
@@ -105,7 +105,77 @@ func TestTinylinkService_Redirect(t *testing.T) {
 
 			rowID, url, err := svc.Redirect(ctx, userID, expected.Alias)
 			tc.assertFn(t, rowID, url, err)
+			tc.repoExpectations(t, mockDb, mockCache)
+		})
+	}
+}
 
+func TestTinylinkService_Create(t *testing.T) {
+	type testCase struct {
+		params           tinylink.CreateTinylinkParams
+		mockDbReturn     []interface{}
+		mockCacheReturn  []interface{}
+		assertFn         func(t *testing.T, tl *tinylink.Tinylink, err error)
+		repoExpectations func(t *testing.T, mdr *mocks.MockDbRepository, mcr *mocks.MockCacheRepository)
+	}
+
+	alias := "abc123"
+	url := "https://test_123.com"
+	guestUUID := "random_string"
+
+	testCases := map[string]testCase{
+		"pass: create tinylink with alias": {
+			params: tinylink.CreateTinylinkParams{
+				Alias:     &alias,
+				URL:       url,
+				GuestUUID: guestUUID,
+			},
+			mockCacheReturn: nil,
+			mockDbReturn:    []interface{}{nil},
+			assertFn: func(t *testing.T, tl *tinylink.Tinylink, err error) {
+				require.NoError(t, err)
+				require.NotZero(t, tl.ID)
+				require.NotZero(t, tl.Version)
+				require.False(t, tl.CreatedAt.IsZero())
+				require.Equal(t, tl.Alias, alias)
+				require.Equal(t, tl.URL, url)
+				require.Equal(t, tl.GuestUUID, guestUUID)
+			},
+			repoExpectations: func(t *testing.T, mdr *mocks.MockDbRepository, mcr *mocks.MockCacheRepository,
+			) {
+				mdr.AssertExpectations(t)
+				mcr.AssertExpectations(t)
+			},
+		},
+		// "pass: create tinylink without alias":    {},
+		// "fail: create private tinylink as guest": {},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			mockDb := new(mocks.MockDbRepository)
+			mockCache := new(mocks.MockCacheRepository)
+
+			svc := tinylink.NewService(mockDb, mockCache)
+
+			if tc.mockCacheReturn != nil {
+				mockCache.On("GenerateAlias", ctx).Return(tc.mockCacheReturn...)
+			}
+
+			if tc.mockDbReturn != nil {
+				mockDb.On("Insert", ctx, mock.AnythingOfType("*tinylink.Tinylink")).
+					Run(func(args mock.Arguments) {
+						tl := args.Get(1).(*tinylink.Tinylink)
+						tl.ID = 42
+						tl.Version++
+						tl.CreatedAt = time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+					}).
+					Return(tc.mockDbReturn...)
+			}
+
+			tl, err := svc.Create(ctx, tc.params)
+			tc.assertFn(t, tl, err)
 			tc.repoExpectations(t, mockDb, mockCache)
 		})
 	}
