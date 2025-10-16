@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/core/transactor"
 	tinylinkHandler "github.com/Kostaaa1/tinylink/internal/api/tinylink"
 	userHandler "github.com/Kostaaa1/tinylink/internal/api/user"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
@@ -73,8 +72,7 @@ func (a *application) registerUsers(
 	authMW mux.MiddlewareFunc,
 ) {
 	userRepo := postgres.NewUserRepository(pool)
-	userProvider := transactor.NewProvider(userRepo, transactor.WithPgxPool(pool))
-	userService := user.NewService(userRepo, tokenRepo, userProvider)
+	userService := user.NewService(userRepo, tokenRepo)
 	userHandler := userHandler.NewUserHandler(userService, errHandler, a.log)
 	userHandler.RegisterRoutes(a.router, authMW)
 }
@@ -87,8 +85,7 @@ func (a *application) registerTinylink(
 ) {
 	tlRepo := postgres.NewTinylinkRepository(pool)
 	tlCacheRepo := redis.NewTinylinkRepository(redisClient)
-	tlProvider := transactor.NewProvider(tlRepo, transactor.WithPgxPool(pool))
-	tlService := tinylink.NewService(tlProvider.Repos(), tlCacheRepo)
+	tlService := tinylink.NewService(tlRepo, tlCacheRepo)
 	tlHandler := tinylinkHandler.NewTinylinkHandler(tlService, errHandler, a.log)
 	tlHandler.RegisterRoutes(a.router, authMW)
 }

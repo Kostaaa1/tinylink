@@ -6,26 +6,17 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Kostaaa1/tinylink/core/transactor"
 	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/user"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepository struct {
-	db transactor.PgxQuerier
+	pool *pgxpool.Pool
 }
 
-func NewUserRepository(db transactor.PgxQuerier) user.Repository {
-	return &UserRepository{db: db}
-}
-
-func (p *UserRepository) WithTx(tx transactor.Tx) user.Repository {
-	pgxTx, ok := tx.(pgx.Tx)
-	if !ok {
-		panic("tx does not match the pgx.Tx")
-	}
-	return &UserRepository{db: pgxTx}
+func NewUserRepository(pool *pgxpool.Pool) user.Repository {
+	return &UserRepository{pool: pool}
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id uint64) (*user.User, error) {
@@ -42,15 +33,13 @@ func (r *UserRepository) GetByID(ctx context.Context, id uint64) (*user.User, er
 	var gVerified sql.NullBool
 	var googlCreatedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, query, id).Scan(
+	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&userData.ID,
 		&userData.Name,
 		&userData.Email,
-		// &userData.Password.Hash,
 		&pwHash,
 		&userData.Version,
 		&userData.CreatedAt,
-
 		&gID,
 		&gName,
 		&gGivenName,
@@ -99,7 +88,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	var gVerified sql.NullBool
 	var googlCreatedAt sql.NullTime
 
-	err := r.db.QueryRow(ctx, query, email).Scan(
+	err := r.pool.QueryRow(ctx, query, email).Scan(
 		&userData.ID,
 		&userData.Name,
 		&userData.Email,
@@ -153,12 +142,13 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 // }
 
 func (r *UserRepository) Insert(ctx context.Context, user *user.User) error {
+
 	query := `INSERT INTO users (name, email, password_hash)
             VALUES ($1, $2, $3)
             RETURNING id, created_at, version`
 
 	args := []interface{}{user.Name, user.Email, user.Password.Hash}
-	if err := r.db.QueryRow(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version); err != nil {
+	if err := r.pool.QueryRow(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version); err != nil {
 		// if isUniqueConstraintErr(err) {
 		// 	return data.ErrRecordExists
 		// }
@@ -182,7 +172,7 @@ func (r *UserRepository) Insert(ctx context.Context, user *user.User) error {
 			user.Google.VerifiedEmail,
 		}
 
-		if err := r.db.QueryRow(ctx, query, args...).Scan(&user.Google.CreatedAt); err != nil {
+		if err := r.pool.QueryRow(ctx, query, args...).Scan(&user.Google.CreatedAt); err != nil {
 			// if isUniqueConstraintErr(err) {
 			// 	return data.ErrRecordExists
 			// }
@@ -194,6 +184,7 @@ func (r *UserRepository) Insert(ctx context.Context, user *user.User) error {
 }
 
 func (r *UserRepository) InsertGoogleUser(ctx context.Context, googleUser *user.GoogleUser) error {
+
 	query := `INSERT INTO google_users_data
 			(user_id, google_id, email, name, given_name, family_name, picture, is_verified)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -210,7 +201,7 @@ func (r *UserRepository) InsertGoogleUser(ctx context.Context, googleUser *user.
 		googleUser.VerifiedEmail,
 	}
 
-	if err := r.db.QueryRow(ctx, query, args...).Scan(&googleUser.CreatedAt); err != nil {
+	if err := r.pool.QueryRow(ctx, query, args...).Scan(&googleUser.CreatedAt); err != nil {
 		// if isUniqueConstraintErr(err) {
 		// 	return data.ErrRecordExists
 		// }
@@ -221,8 +212,9 @@ func (r *UserRepository) InsertGoogleUser(ctx context.Context, googleUser *user.
 }
 
 func (r *UserRepository) Delete(ctx context.Context, userID string) error {
+
 	query := "DELETE FROM users WHERE id = ?"
-	res, err := r.db.Exec(ctx, query, userID)
+	res, err := r.pool.Exec(ctx, query, userID)
 	if err != nil {
 		return fmt.Errorf("failed to execute delete query: %w", err)
 	}
@@ -233,6 +225,7 @@ func (r *UserRepository) Delete(ctx context.Context, userID string) error {
 }
 
 func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
+
 	query := `
         UPDATE users
         SET name = $1, email = $2, password_hash = $3, version = version + 1
@@ -247,7 +240,7 @@ func (r *UserRepository) Update(ctx context.Context, user *user.User) error {
 		user.ID,
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(&user.Version)
+	err := r.pool.QueryRow(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
 		switch {
 		case err == sql.ErrNoRows:

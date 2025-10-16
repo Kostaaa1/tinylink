@@ -5,33 +5,23 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Kostaaa1/tinylink/core/transactor"
 	"github.com/Kostaaa1/tinylink/internal/constants"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TinylinkRepository struct {
-	db transactor.PgxQuerier
+	pool *pgxpool.Pool
 }
 
-var _ tinylink.DbRepository = (*TinylinkRepository)(nil)
-
-func NewTinylinkRepository(db transactor.PgxQuerier) tinylink.DbRepository {
-	return &TinylinkRepository{db: db}
-}
-
-func (p *TinylinkRepository) WithTx(tx transactor.Tx) tinylink.DbRepository {
-	pgxTx, ok := tx.(pgx.Tx)
-	if !ok {
-		panic("tx does not match type of pgx.Tx")
-	}
-	return &TinylinkRepository{db: pgxTx}
+func NewTinylinkRepository(pool *pgxpool.Pool) tinylink.DbRepository {
+	return &TinylinkRepository{pool: pool}
 }
 
 func (r *TinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) error {
-	query := `INSERT INTO tinylinks 
+	query := `INSERT INTO tinylinks
 			(alias, url, private, user_id, guest_id, domain, expiration)
 			VALUES
 			($1, $2, $3, $4, $5, $6, $7)
@@ -40,7 +30,7 @@ func (r *TinylinkRepository) Insert(ctx context.Context, tl *tinylink.Tinylink) 
 
 	args := []interface{}{tl.Alias, tl.URL, tl.Private, tl.UserID, tl.GuestUUID, tl.Domain, tl.Expiration}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
 		&tl.ID,
 		&tl.CreatedAt,
 		&tl.Version,
@@ -70,8 +60,8 @@ func isAliasUniqueErr(err error) bool {
 }
 
 func (r *TinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) error {
-	query := `UPDATE tinylinks 
-		SET alias = $1, url = $2, private = $3, expiration = $4, domain = $5, 
+	query := `UPDATE tinylinks
+		SET alias = $1, url = $2, private = $3, expiration = $4, domain = $5,
 		version = version + 1, updated_at = NOW()
 		WHERE user_id = $6 AND id = $7
 		RETURNING alias, url, domain, private, user_id, guest_id, version, created_at, updated_at, expiration`
@@ -86,7 +76,7 @@ func (r *TinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) 
 		tl.ID,
 	}
 
-	err := r.db.QueryRow(ctx, query, args...).Scan(
+	err := r.pool.QueryRow(ctx, query, args...).Scan(
 		&tl.Alias,
 		&tl.URL,
 		&tl.Domain,
@@ -116,7 +106,7 @@ func (r *TinylinkRepository) Update(ctx context.Context, tl *tinylink.Tinylink) 
 func (r *TinylinkRepository) ListByGuestUUID(ctx context.Context, uuid string) ([]*tinylink.Tinylink, error) {
 	query := `SELECT id, alias, url, user_id, guest_id, version, domain, private, created_at, updated_at, expiration FROM tinylinks WHERE guest_id = $1`
 
-	rows, err := r.db.Query(ctx, query, uuid)
+	rows, err := r.pool.Query(ctx, query, uuid)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +140,7 @@ func (r *TinylinkRepository) ListByGuestUUID(ctx context.Context, uuid string) (
 func (r *TinylinkRepository) ListByUserID(ctx context.Context, userID uint64) ([]*tinylink.Tinylink, error) {
 	query := `SELECT id, alias, url, user_id, guest_id, version, domain, private, created_at, updated_at, expiration FROM tinylinks WHERE user_id = $1`
 
-	rows, err := r.db.Query(ctx, query, userID)
+	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +175,7 @@ func (r *TinylinkRepository) Redirect(ctx context.Context, userID *uint64, alias
 	query := `SELECT id, url FROM tinylinks WHERE alias = $1 AND (user_id = $2 OR $2 IS NULL)`
 
 	var redirect tinylink.RedirectValue
-	err := r.db.QueryRow(ctx, query, alias, userID).Scan(&redirect.RowID, &redirect.URL)
+	err := r.pool.QueryRow(ctx, query, alias, userID).Scan(&redirect.RowID, &redirect.URL)
 
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -201,7 +191,7 @@ func (r *TinylinkRepository) Get(ctx context.Context, rowID uint64) (*tinylink.T
 	query := `SELECT id, alias, url, user_id, guest_id, version, domain, private, created_at, updated_at, expiration FROM tinylinks WHERE id = $1`
 
 	var tl tinylink.Tinylink
-	err := r.db.QueryRow(ctx, query, rowID).
+	err := r.pool.QueryRow(ctx, query, rowID).
 		Scan(
 			&tl.ID,
 			&tl.Alias,
@@ -227,7 +217,7 @@ func (r *TinylinkRepository) Get(ctx context.Context, rowID uint64) (*tinylink.T
 }
 
 func (r *TinylinkRepository) Delete(ctx context.Context, userID uint64, alias string) error {
-	res, err := r.db.Exec(ctx, `DELETE FROM TINYLINKS WHERE alias = $1 and user_id = $2`, alias, userID)
+	res, err := r.pool.Exec(ctx, `DELETE FROM TINYLINKS WHERE alias = $1 and user_id = $2`, alias, userID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return constants.ErrNotFound

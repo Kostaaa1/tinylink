@@ -34,7 +34,10 @@ type Service struct {
 }
 
 func NewService(dbRepo DbRepository, cacheRepo CacheRepository) *Service {
-	return &Service{repo: dbRepo, cache: cacheRepo}
+	return &Service{
+		repo:  dbRepo,
+		cache: cacheRepo,
+	}
 }
 
 func (s *Service) List(ctx context.Context, userCtx auth.UserContext) ([]*Tinylink, error) {
@@ -47,7 +50,7 @@ func (s *Service) List(ctx context.Context, userCtx auth.UserContext) ([]*Tinyli
 func (s *Service) Create(ctx context.Context, params CreateTinylinkParams) (*Tinylink, error) {
 	// guestUUID always needs to be passed,
 	if len(params.GuestUUID) == 0 {
-		return nil, errors.Join(constants.ErrUnauthenticated, errors.New("missing guestUUID"))
+		return nil, errors.New("guesstUUID is missing")
 	}
 
 	if params.UserID == nil && params.Private {
@@ -143,16 +146,3 @@ func (s *Service) Redirect(ctx context.Context, userID *uint64, alias string) (u
 	// 	return 0, "", err
 	// }
 }
-
-// func (s *Service) Redirect(ctx context.Context, userID *uint64, alias string) (uint64, string, error) {
-// 	val, err := s.repo.Redirect(ctx, alias, userID)
-// 	if err != nil {
-// 		return 0, "", err
-// 	}
-
-// 	if val.URL == "" {
-// 		return 0, "", constants.ErrNotFound
-// 	}
-
-// 	return val.RowID, val.URL, nil
-// }

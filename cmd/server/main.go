@@ -27,7 +27,7 @@ const (
 	version = "1.0.0"
 )
 
-// @title TinyLink API
+// @title Tinylink API
 // @version 1.0
 // @description API documentation for Tinylink
 // @host localhost:8000
@@ -69,6 +69,7 @@ func main() {
 	mw := middleware.New(errHandler, tokenService, a.log)
 
 	a.router.Use(mw.Global)
+
 	a.registerSwagger()
 	a.registerUsers(dbPool, tokenRepo, errHandler, mw.RouteProtector)
 	a.registerTinylink(dbPool, redisClient, errHandler, mw.RouteProtector)

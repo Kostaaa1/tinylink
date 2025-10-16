@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/Kostaaa1/tinylink/core/transactor"
 	"github.com/Kostaaa1/tinylink/internal/domain/tinylink"
 	"github.com/stretchr/testify/mock"
 )
@@ -68,10 +67,6 @@ func (m *MockDbRepository) ListByGuestUUID(ctx context.Context, guestUUID string
 		return rv.([]*tinylink.Tinylink), args.Error(1)
 	}
 	return nil, args.Error(1)
-}
-
-func (m *MockDbRepository) WithTx(tx transactor.Tx) tinylink.DbRepository {
-	return m
 }
 
 var _ tinylink.CacheRepository = (*MockCacheRepository)(nil)

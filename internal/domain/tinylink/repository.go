@@ -3,8 +3,6 @@ package tinylink
 import (
 	"context"
 	"time"
-
-	"github.com/Kostaaa1/tinylink/core/transactor"
 )
 
 type LinkLister interface {
@@ -23,7 +21,6 @@ type DbRepository interface {
 	LinkLister
 	Redirect(ctx context.Context, userID *uint64, alias string) (*RedirectValue, error)
 	Get(ctx context.Context, rowID uint64) (*Tinylink, error)
-	WithTx(tx transactor.Tx) DbRepository
 }
 
 type CacheRepository interface {
