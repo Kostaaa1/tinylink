@@ -131,18 +131,18 @@ func (s *Service) Redirect(ctx context.Context, userID *uint64, alias string) (u
 		return 0, "", constants.ErrNotFound
 	}
 
-	return val.RowID, val.URL, nil
-
 	// implement some logic to collect metrics and analysis when redirect happens. Use something like rabitMQ, kafka, redis pub/sub, or even my own event pool. This should not impact performance in any way.
 	// cache it - add hit count - implement worker pool
 
-	// err = s.cache.Cache(ctx, RedirectValue{
-	// 	RowID: val.RowID,
-	// 	Alias: val.Alias,
-	// 	URL:   val.URL,
-	// }, defaultTTL)
+	err = s.cache.Cache(ctx, RedirectValue{
+		RowID: val.RowID,
+		Alias: val.Alias,
+		URL:   val.URL,
+	}, defaultTTL)
 
-	// if err != nil {
-	// 	return 0, "", err
-	// }
+	if err != nil {
+		return 0, "", err
+	}
+
+	return val.RowID, val.URL, nil
 }
